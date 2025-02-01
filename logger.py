@@ -3,6 +3,7 @@ import time
 import argparse
 import csv
 import os
+from datetime import datetime, timezone
 
 URL = "http://192.168.0.2/statusjsn.js?components=1073741823"
 
@@ -41,10 +42,10 @@ def fetch_data(url):
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
+        return datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S"), None  # Return timestamp with None
     except (KeyError, IndexError) as e:
         print(f"Error parsing data: {e}")
-
-    return None, None
+        return datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S"), None  # Return timestamp with None
 
 # Function to save data to CSV
 def save_to_csv(filename, timestamp, metrics):
@@ -54,9 +55,16 @@ def save_to_csv(filename, timestamp, metrics):
             writer = csv.writer(csvfile)
             
             if not file_exists:
-                writer.writerow(["Timestamp"] + list(metrics.keys()))
+                writer.writerow(["Timestamp"] + [
+                    "Voltage (V)", "Current (A)", "Frequency (Hz)", "Phase (deg)",
+                    "Active Power (W)", "Reactive Power (VAR)", "Apparent Power (VA)",
+                    "Power Factor (PF)", "Total Energy (kWh)", "Resettable Energy (kWh)"
+                ])
             
-            writer.writerow([timestamp] + list(metrics.values()))
+            if metrics:
+                writer.writerow([timestamp] + list(metrics.values()))
+            else:
+                writer.writerow([timestamp] + ["TIMEOUT"] * 10)  # Fill with "TIMEOUT"
     except IOError as e:
         print(f"Error writing to CSV: {e}")
 
@@ -72,13 +80,16 @@ def main():
     try:
         while True:
             timestamp, metrics = fetch_data(URL) 
-            if timestamp and metrics:
+            if metrics:
                 print(f"Timestamp: {timestamp}")
                 for metric, value in metrics.items():
                     print(f"{metric}: {value}")
-                print("-" * 50)
-                # Save to CSV
-                save_to_csv(args.csv, timestamp, metrics)
+            else:
+                print(f"Timestamp: {timestamp} - Request Failed (Logged as TIMEOUT)")
+                
+            print("-" * 50)
+            # Save to CSV
+            save_to_csv(args.csv, timestamp, metrics)
             time.sleep(args.rate) 
     except KeyboardInterrupt:
         print("\nPolling stopped.")
