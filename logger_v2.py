@@ -19,7 +19,7 @@ def fetch_data(url):
         # Extract UTC timestamp
         utc_timestamp = data.get("clock", {}).get("systemtime", {})
         formatted_utc_time = (
-            f"{utc_timestamp.get('day'):02d}-{utc_timestamp.get('month'):02d}-{utc_timestamp.get('year')} "
+            f"{utc_timestamp.get('year')}-{utc_timestamp.get('month'):02d}-{utc_timestamp.get('day'):02d} "
             f"{utc_timestamp.get('hour'):02d}:{utc_timestamp.get('minute'):02d}:{utc_timestamp.get('second'):02d}"
         )
 
@@ -46,10 +46,10 @@ def fetch_data(url):
 
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
-        return datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S.%f")[:-3], None  # Include milliseconds
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3], None  # Include milliseconds
     except (KeyError, IndexError) as e:
         print(f"Error parsing data: {e}")
-        return datetime.now(timezone.utc).strftime("%d-%m-%Y %H:%M:%S.%f")[:-3], None  # Include milliseconds
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3], None  # Include milliseconds
 
 # Function to save data to CSV
 def save_to_csv(filename, timestamp, metrics):
