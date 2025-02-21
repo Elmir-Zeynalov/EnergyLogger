@@ -9,7 +9,7 @@ const fs = require('fs');
     });
 
     const page = await browser.newPage();
-    await page.goto('https://www.youtube.com', { waitUntil: 'load' });
+    await page.goto('https://www.youtube.com/watch?v=8QcQ_1280Iw', { waitUntil: 'load' });
 
     try {
         console.log("Checking for cookie consent banner...");
@@ -33,9 +33,10 @@ const fs = require('fs');
     fs.writeFileSync(logFile, 'timestamp,bytes_received,url\n');
 
     page.on('request', request => {
-        if (request.url().includes("googlevideo.com")) {
+        const url = request.url();
+
+        if (url.includes(".googlevideo.com/")) {
             const timestamp = new Date().toISOString();
-            const url = request.url();
             const headers = request.headers();
 
             console.log(`URL: ${url}`);
