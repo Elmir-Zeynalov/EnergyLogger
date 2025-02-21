@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+/* const puppeteer = require('puppeteer');
 
 (async () => {
     const browser = await puppeteer.launch({
@@ -29,7 +29,7 @@ const puppeteer = require('puppeteer');
 
 })();
 
-////
+*/
 
 const puppeteer = require('puppeteer');
 
@@ -46,20 +46,15 @@ const puppeteer = require('puppeteer');
     try {
         console.log("Checking for cookie consent banner...");
 
-        // Wait for the consent iframe
-        await page.waitForSelector('iframe[src*="consent"]', { timeout: 5000 });
-        const consentFrameElement = await page.$('iframe[src*="consent"]');
+        // Wait for "Accept All" button
+        await page.waitForSelector('button:nth-of-type(2)', { timeout: 5000 });
 
-        if (consentFrameElement) {
-            console.log("Found consent banner. Attempting to accept cookies...");
-            const frame = await consentFrameElement.contentFrame();
-
-            // Wait for "Accept All" button inside the iframe
-            await frame.waitForSelector('button:nth-child(2)', { timeout: 5000 });
-            await frame.click('button:nth-child(2)');
-
-            console.log("Cookies accepted successfully.");
-        }
+        // Click "Accept All"
+        await page.click('button:nth-of-type(2)');
+        console.log("Cookies accepted successfully.");
+        
+        // Short wait to ensure changes take effect
+        await page.waitForTimeout(2000);
     } catch (error) {
         console.log("No cookie banner found. Moving on...");
     }
