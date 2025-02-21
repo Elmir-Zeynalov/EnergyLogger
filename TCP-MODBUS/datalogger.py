@@ -2,12 +2,11 @@ import asyncio
 import time
 from pymodbus.client import AsyncModbusTcpClient
 
-
 # Modbus TCP Server Address
 ADDR = "192.168.0.2"
 PORT = 502
 
-# Sensor Addresses (Same as in Rust Code)
+# Sensor Addresses
 class LineInEnergySensor:
     ABSOLUTE_ACTIVE_ENERGY = 0x400
     POWER_ACTIVE = 0x402
@@ -28,8 +27,6 @@ class LineInEnergySensor:
     REVERSE_REACTIVE_ENERGY = 0x424
     REVERSE_ACTIVE_ENERGY_RESETTABLE = 0x426
     REVERSE_REACTIVE_ENERGY_RESETTABLE = 0x428
-    RESIDUAL_CURRENT_TYPE_A = 0x42A
-    NEUTRAL_CURRENT = 0x42C
 
 # Sensors to Read
 SENSOR_ARRAY = [
@@ -38,16 +35,32 @@ SENSOR_ARRAY = [
     LineInEnergySensor.CURRENT,
     LineInEnergySensor.FREQUENCY,
     LineInEnergySensor.POWER_FACTOR,
+    LineInEnergySensor.POWER_APPARENT,
+    LineInEnergySensor.POWER_REACTIVE,
+    LineInEnergySensor.ABSOLUTE_ACTIVE_ENERGY,
+    LineInEnergySensor.ABSOLUTE_ACTIVE_ENERGY_RESETTABLE,
+    LineInEnergySensor.FORWARD_ACTIVE_ENERGY,
+    LineInEnergySensor.FORWARD_REACTIVE_ENERGY,
+    LineInEnergySensor.REVERSE_ACTIVE_ENERGY,
+    LineInEnergySensor.REVERSE_REACTIVE_ENERGY
 ]
 
 # Initialize Sensor Data Structure
 def init_sensor_data():
     return {
         "power_active": 0,
-        "voltage": 0,
-        "current": 0,
-        "frequency": 0,
+        "voltage": 0,  # No scaling needed
+        "current": 0.0,
+        "frequency": 0.0,
         "power_factor": 0.0,
+        "power_apparent": 0,
+        "power_reactive": 0,
+        "absolute_active_energy": 0,
+        "absolute_active_energy_resettable": 0,
+        "forward_active_energy": 0,
+        "forward_reactive_energy": 0,
+        "reverse_active_energy": 0,
+        "reverse_reactive_energy": 0
     }
 
 async def read_modbus_data():
@@ -60,39 +73,71 @@ async def read_modbus_data():
 
         if not client.connected:
             print("Failed to connect to Modbus server")
-            await asyncio.sleep(1)  # Retry in 1 second
+            await asyncio.sleep(1)
             continue
 
         for sensor_type in SENSOR_ARRAY:
             try:
                 response = await client.read_input_registers(sensor_type, count=2)
+                
                 if response.isError():
-                    print(f"Error reading register {sensor_type}: {response}")
+                    print(f"Skipping register {hex(sensor_type)}: {response}")
                     continue
 
                 registers = response.registers
                 raw_value = (int(registers[0]) << 16) | int(registers[1])
-                
+
                 if sensor_type == LineInEnergySensor.POWER_ACTIVE:
                     sensor_data["power_active"] = raw_value
                 elif sensor_type == LineInEnergySensor.VOLTAGE:
-                    sensor_data["voltage"] = raw_value  # Treat voltage as integer
+                    sensor_data["voltage"] = raw_value  # No scaling needed
                 elif sensor_type == LineInEnergySensor.CURRENT:
-                    sensor_data["current"] = raw_value
+                    sensor_data["current"] = raw_value / 1000.0  # Convert mA to A
                 elif sensor_type == LineInEnergySensor.FREQUENCY:
-                    sensor_data["frequency"] = raw_value / 100.0  # Assuming frequency needs decimal precision
+                    sensor_data["frequency"] = raw_value / 100.0  # Convert to Hz
                 elif sensor_type == LineInEnergySensor.POWER_FACTOR:
-                    sensor_data["power_factor"] = raw_value / 1000.0
+                    sensor_data["power_factor"] = raw_value / 1000.0  # Correct PF scaling
+                elif sensor_type == LineInEnergySensor.POWER_APPARENT:
+                    sensor_data["power_apparent"] = raw_value
+                elif sensor_type == LineInEnergySensor.POWER_REACTIVE:
+                    sensor_data["power_reactive"] = raw_value
+                elif sensor_type == LineInEnergySensor.ABSOLUTE_ACTIVE_ENERGY:
+                    sensor_data["absolute_active_energy"] = raw_value
+                elif sensor_type == LineInEnergySensor.ABSOLUTE_ACTIVE_ENERGY_RESETTABLE:
+                    sensor_data["absolute_active_energy_resettable"] = raw_value
+                elif sensor_type == LineInEnergySensor.FORWARD_ACTIVE_ENERGY:
+                    sensor_data["forward_active_energy"] = raw_value
+                elif sensor_type == LineInEnergySensor.FORWARD_REACTIVE_ENERGY:
+                    sensor_data["forward_reactive_energy"] = raw_value
+                elif sensor_type == LineInEnergySensor.REVERSE_ACTIVE_ENERGY:
+                    sensor_data["reverse_active_energy"] = raw_value
+                elif sensor_type == LineInEnergySensor.REVERSE_REACTIVE_ENERGY:
+                    sensor_data["reverse_reactive_energy"] = raw_value
             except Exception as e:
-                print(f"Exception while reading registers: {e}")
+                print(f"Exception while reading register {hex(sensor_type)}: {e}")
 
-        elapsed_time = (time.time() - start_time) * 1e6  # Convert to microseconds
-        timestamp = int(time.time() * 1000)  # Milliseconds since epoch
-        power = sensor_data["voltage"] * (sensor_data["current"] / 1000.0) * sensor_data["power_factor"]
+        elapsed_time = (time.time() - start_time) * 1e6
+        timestamp = int(time.time() * 1000)
 
-        print(f"{timestamp} ms since epoch, Readings: ({sensor_data['voltage']}V  / {sensor_data['current']/1000.0}A / {sensor_data['power_factor']}PF / {sensor_data['frequency']:.2f}Hz / {sensor_data['power_active']}W), Computed Power: {power:.2f}W, Time taken: {elapsed_time:.2f} µs")
+        # Compute Power: P = V * I * PF
+        computed_power = sensor_data["voltage"] * sensor_data["current"] * sensor_data["power_factor"]
 
-        await asyncio.sleep(0.01)  # 10ms delay
+        print(
+            f"{timestamp} ms | "
+            f"Voltage: {sensor_data['voltage']}V | "
+            f"Current: {sensor_data['current']:.3f}A | "
+            f"Frequency: {sensor_data['frequency']:.2f}Hz | "
+            f"PF: {sensor_data['power_factor']:.3f} | "  # Now correctly scaled
+            f"Active Power (Modbus): {sensor_data['power_active']}W | "
+            f"Computed Power: {computed_power:.2f}W | "
+            f"Reactive Power: {sensor_data['power_reactive']}VAR | "
+            f"Apparent Power: {sensor_data['power_apparent']}VA | "
+            f"Energy: {sensor_data['absolute_active_energy']}Wh | "
+            f"Resettable Energy: {sensor_data['absolute_active_energy_resettable']}Wh | "
+            f"Time taken: {elapsed_time:.2f} µs"
+        )
+
+        await asyncio.sleep(0.01)
 
     await client.close()
 
