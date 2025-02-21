@@ -15,8 +15,6 @@ const puppeteer = require('puppeteer');
 
         // trying to find the Accept all button
         await page.waitForSelector('button[aria-label="Accept the use of cookies and other data for the purposes described"]', { timeout: 5000 });
-
-        // Click "Accept All"
         await page.click('button[aria-label="Accept the use of cookies and other data for the purposes described"]');
         console.log("Cookies accepted successfully.");
 
@@ -27,46 +25,28 @@ const puppeteer = require('puppeteer');
     }
 
     console.log("Proceeding with video loading...");
-})();
-
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-(async () => {
-    const browser = await puppeteer.launch({
-        executablePath: '/usr/bin/chromium-browser',
-        headless: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-    
-    // Enable request interception to track video chunks
+    console.log("Intercepting calls...");
     await page.setRequestInterception(true);
 
-    // File to store data
-    const logFile = 'youtube_network_log.csv';
-    fs.writeFileSync(logFile, 'timestamp,bytes_received,url\n'); // CSV header
+    const logFile = "youtube_network_log.csv";
+    fs.writeFileSync(logFile, 'timestamp,bytes_received,url\n');
 
     page.on('request', request => {
         if (request.url().includes("googlevideo.com")) {
             const timestamp = new Date().toISOString();
             const url = request.url();
             const headers = request.headers();
-            
+
+            console.log(`URL: ${url}`);
             // Get the content-length from headers (size of the video chunk)
             let bytesReceived = headers['content-length'] ? parseInt(headers['content-length'], 10) : 0;
 
             console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
-            
+
             // Append to CSV file
             fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
         }
         request.continue();
     });
 
-    console.log("Loading YouTube...");
-    await page.goto('https://www.youtube.com/watch?v=YOUR_VIDEO_ID', { waitUntil: 'load' });
-
 })();
-
