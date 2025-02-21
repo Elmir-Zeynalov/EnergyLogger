@@ -1,6 +1,19 @@
 import asyncio
 import time
+import argparse
 from pymodbus.client import AsyncModbusTcpClient
+import csv_logger  # Import the new module
+
+# Parse command-line arguments for CSV filename
+parser = argparse.ArgumentParser(description="Modbus Data Logger")
+parser.add_argument("--csv", type=str, required=True, help="CSV file to store data")
+args = parser.parse_args()
+csv_file = args.csv
+
+# Initialize the CSV file
+csv_logger.init_csv(csv_file)
+
+
 
 # Modbus TCP Server Address
 ADDR = "192.168.0.2"
@@ -120,22 +133,31 @@ async def read_modbus_data():
         timestamp = int(time.time() * 1000)
 
         # Compute Power: P = V * I * PF
-        computed_power = sensor_data["voltage"] * sensor_data["current"] * sensor_data["power_factor"]
+        computed_power = round(sensor_data["voltage"] * sensor_data["current"] * sensor_data["power_factor"], 3)
 
         print(
             f"{timestamp} ms | "
             f"Voltage: {sensor_data['voltage']}V | "
             f"Current: {sensor_data['current']:.3f}A | "
+             f"Active Power (Modbus): {sensor_data['power_active']}W | "
+            f"Computed Power: {computed_power}W | "
             f"Frequency: {sensor_data['frequency']:.2f}Hz | "
             f"PF: {sensor_data['power_factor']:.3f} | "  # Now correctly scaled
-            f"Active Power (Modbus): {sensor_data['power_active']}W | "
-            f"Computed Power: {computed_power:.2f}W | "
-            f"Reactive Power: {sensor_data['power_reactive']}VAR | "
             f"Apparent Power: {sensor_data['power_apparent']}VA | "
             f"Energy: {sensor_data['absolute_active_energy']}Wh | "
             f"Resettable Energy: {sensor_data['absolute_active_energy_resettable']}Wh | "
             f"Time taken: {elapsed_time:.2f} µs"
         )
+
+
+        # Log data to CSV
+        csv_logger.log_to_csv(csv_file, [
+            timestamp,
+            sensor_data["voltage"], sensor_data["current"], sensor_data["power_active"], computed_power, sensor_data["frequency"],
+            sensor_data["power_apparent"], sensor_data["power_factor"],
+            sensor_data["absolute_active_energy"], sensor_data["absolute_active_energy_resettable"],
+            elapsed_time
+        ])
 
         await asyncio.sleep(0.01)
 
