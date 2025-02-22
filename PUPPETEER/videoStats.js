@@ -29,7 +29,7 @@ const fs = require('fs');
 
     console.log("Proceeding with video loading...");
     console.log("Intercepting calls...");
-    await page.setRequestInterception(true);
+    //await page.setRequestInterception(true);
 
     const logFile = "youtube_network_log.csv";
     fs.writeFileSync(logFile, 'timestamp,bytes_received,url\n');
@@ -66,7 +66,7 @@ const fs = require('fs');
             const bytesReceived = bodyData ? Buffer.byteLength(bodyData.body, 'utf8') : 0;
 
             console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
-            
+
             fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
         }
     });
