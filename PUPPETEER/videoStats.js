@@ -56,6 +56,8 @@ const fs = require('fs');
         request.continue();
     });
     */
+
+    /*
     client.on('Network.responseReceived', async (event) => {
         const url = event.response.url;
         if(url.includes(".googlevideo.com/") && url.includes("videoplayback")){
@@ -70,6 +72,27 @@ const fs = require('fs');
             fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
         }
     });
+    */
+   const requestSizes = {}
+   client.on('Network.responseReceived', (event) => {
+        const url = event.response.url;
 
+        if (url.includes(".googlevideo.com/") && url.includes("videoplayback")) {
+            requestSizes[event.requestId] = { url, timestamp: new Date().toISOString() };
+        }
+    });
+
+    // Capture completed downloads
+    client.on('Network.loadingFinished', async (event) => {
+        if (requestSizes[event.requestId]) {
+            const { url, timestamp } = requestSizes[event.requestId];
+            const bytesReceived = event.encodedDataLength; // This is the actual downloaded data size
+
+            console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
+
+            fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
+            delete requestSizes[event.requestId]; // Clean up memory
+        }
+    });
 
 })();
