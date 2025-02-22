@@ -73,25 +73,19 @@ const fs = require('fs');
         }
     });
     */
-   const requestSizes = {}
-   client.on('Network.responseReceived', (event) => {
-        const url = event.response.url;
+   client.on('Network.loadingFinished', async (event) => {
+        const response = await client.send('Network.getResponseBody', { requestId: event.requestId }).catch(() => null);
+        
+        if (response) {
+            const url = response.url || "";
+            if (url.includes(".googlevideo.com/") && url.includes("videoplayback")) {
+                const timestamp = new Date().toISOString();
+                const bytesReceived = event.encodedDataLength;
 
-        if (url.includes(".googlevideo.com/") && url.includes("videoplayback")) {
-            requestSizes[event.requestId] = { url, timestamp: new Date().toISOString() };
-        }
-    });
+                console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
 
-    // Capture completed downloads
-    client.on('Network.loadingFinished', async (event) => {
-        if (requestSizes[event.requestId]) {
-            const { url, timestamp } = requestSizes[event.requestId];
-            const bytesReceived = event.encodedDataLength; // This is the actual downloaded data size
-
-            console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
-
-            fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
-            delete requestSizes[event.requestId]; // Clean up memory
+                fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
+            }
         }
     });
 
