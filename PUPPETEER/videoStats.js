@@ -161,3 +161,79 @@ const fs = require('fs');
     }, 5000);
 
 })();
+
+
+
+/////NEW VERSION
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    console.log("Loading YouTube...");
+    await page.goto('https://www.youtube.com/watch?v=8QcQ_128OIw', { waitUntil: 'load' });
+
+    try {
+        console.log("Checking for cookie consent banner...");
+        const acceptButton = await page.$('button[aria-label="Accept the use of cookies and other data for the purposes described"]');
+        if (acceptButton) {
+            await acceptButton.click();
+            console.log("Cookies accepted successfully.");
+            await page.waitForTimeout(2000);
+        }
+    } catch (error) {
+        console.log("No cookie banner found. Moving on...");
+    }
+
+    console.log("Proceeding with video loading...");
+
+    // Set normal network conditions
+    await page.setCacheEnabled(false);
+    await page.emulateNetworkConditions({
+        offline: false,
+        downloadThroughput: 9999999, // Max out speed
+        uploadThroughput: 9999999,
+        latency: 0
+    });
+
+    console.log("Listening to video network traffic...");
+    let logBuffer = [];
+
+    page.on('response', async (response) => {
+        const url = response.url();
+        if (url.includes(".googlevideo.com/") && url.includes("videoplayback")) {
+            const timestamp = new Date().toISOString();
+            const bytesReceived = response.headers()['content-length'] ? parseInt(response.headers()['content-length'], 10) : 0;
+
+            console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
+            logBuffer.push(`${timestamp},${bytesReceived},${url}`);
+        }
+    });
+
+    // Delay Service Worker unregistration to avoid cache issues
+    await page.evaluate(() => {
+        setTimeout(() => {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }, 10000); // Delay by 10s to allow YouTube to set up properly
+    });
+
+    // Write to file every 5 seconds (instead of every chunk)
+    setInterval(() => {
+        if (logBuffer.length > 0) {
+            fs.appendFileSync("youtube_network_log.csv", logBuffer.join("\n") + "\n");
+            logBuffer = []; // Clear buffer after writing
+        }
+    }, 5000);
+
+})();
