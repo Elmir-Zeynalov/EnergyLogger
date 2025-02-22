@@ -164,7 +164,7 @@ const fs = require('fs');
 
 
 
-/////NEW VERSION
+/////NEW VERSION omg HELP
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
@@ -176,6 +176,7 @@ const fs = require('fs');
     });
 
     const page = await browser.newPage();
+    const client = await page.target().createCDPSession(); // Chrome DevTools Protocol
 
     console.log("Loading YouTube...");
     await page.goto('https://www.youtube.com/watch?v=8QcQ_128OIw', { waitUntil: 'load' });
@@ -193,46 +194,38 @@ const fs = require('fs');
     }
 
     console.log("Proceeding with video loading...");
-
-    // Set normal network conditions
-    await page.setCacheEnabled(false);
-    await page.emulateNetworkConditions({
-        offline: false,
-        downloadThroughput: 9999999, // Max out speed
-        uploadThroughput: 9999999,
-        latency: 0
-    });
-
     console.log("Listening to video network traffic...");
-    let logBuffer = [];
 
-    page.on('response', async (response) => {
-        const url = response.url();
-        if (url.includes(".googlevideo.com/") && url.includes("videoplayback")) {
-            const timestamp = new Date().toISOString();
-            const bytesReceived = response.headers()['content-length'] ? parseInt(response.headers()['content-length'], 10) : 0;
+    await client.send('Network.enable');
 
-            console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
-            logBuffer.push(`${timestamp},${bytesReceived},${url}`);
+    const requestSizes = {}; // Store request sizes
+    let logBuffer = []; // Store log entries in memory
+
+    // Capture requests when a video chunk starts downloading
+    client.on('Network.responseReceived', (event) => {
+        if (event.response.url.includes(".googlevideo.com/") && event.response.url.includes("videoplayback")) {
+            requestSizes[event.requestId] = { url: event.response.url, timestamp: new Date().toISOString() };
         }
     });
 
-    // Delay Service Worker unregistration to avoid cache issues
-    await page.evaluate(() => {
-        setTimeout(() => {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (let registration of registrations) {
-                    registration.unregister();
-                }
-            });
-        }, 10000); // Delay by 10s to allow YouTube to set up properly
+    // Capture actual data size when the chunk finishes downloading
+    client.on('Network.loadingFinished', async (event) => {
+        if (requestSizes[event.requestId]) {
+            const { url, timestamp } = requestSizes[event.requestId];
+            const bytesReceived = event.encodedDataLength; // The ACTUAL size of the downloaded chunk
+
+            console.log(`[${timestamp}] ✅ VIDEO CHUNK: ${bytesReceived} bytes from ${url}`);
+            logBuffer.push(`${timestamp},${bytesReceived},${url}`);
+
+            delete requestSizes[event.requestId]; // Free up memory
+        }
     });
 
     // Write to file every 5 seconds (instead of every chunk)
     setInterval(() => {
         if (logBuffer.length > 0) {
             fs.appendFileSync("youtube_network_log.csv", logBuffer.join("\n") + "\n");
-            logBuffer = []; // Clear buffer after writing
+            logBuffer = [];
         }
     }, 5000);
 
