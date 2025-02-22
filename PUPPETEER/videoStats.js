@@ -9,6 +9,8 @@ const fs = require('fs');
     });
 
     const page = await browser.newPage();
+    const client = await page.target().createCDPSession();
+
     await page.goto('https://www.youtube.com/watch?v=8QcQ_1280Iw', { waitUntil: 'load' });
 
     try {
@@ -32,6 +34,9 @@ const fs = require('fs');
     const logFile = "youtube_network_log.csv";
     fs.writeFileSync(logFile, 'timestamp,bytes_received,url\n');
 
+    await client.send('Network.enable');
+
+    /*
     page.on('request', request => {
         const url = request.url();
 
@@ -50,5 +55,21 @@ const fs = require('fs');
         }
         request.continue();
     });
+    */
+    client.on('Network.responseReceived', async (event) => {
+        const url = event.response.url;
+        if(url.includes(".googlevideo.com/") && url.includes("videoplayback")){
+            const timestamp = new Date().toISOString();
+
+            // Get actual size of response body
+            const bodyData = await client.send('Network.getResponseBody', { requestId: event.requestId }).catch(() => null);
+            const bytesReceived = bodyData ? Buffer.byteLength(bodyData.body, 'utf8') : 0;
+
+            console.log(`[${timestamp}] Video Chunk: ${bytesReceived} bytes from ${url}`);
+            
+            fs.appendFileSync(logFile, `${timestamp},${bytesReceived},${url}\n`);
+        }
+    });
+
 
 })();
