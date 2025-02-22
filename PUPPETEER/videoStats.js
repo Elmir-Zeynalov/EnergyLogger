@@ -27,6 +27,16 @@ const fs = require('fs');
         console.log("No cookie banner found. Moving on...");
     }
 
+    await page.setBypassCSP(true);
+    await page.evaluate(() => {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+                registration.unregister();
+            }
+        });
+    });
+    console.log("Bypassing cache server and unregistering...");
+
     console.log("Proceeding with video loading...");
     console.log("Listening to video network traffic...");
 
