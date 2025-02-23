@@ -40,9 +40,15 @@ const fs = require('fs');
     //////////////////////////////////////////////
     //REAL-TIME DATA LOGGING: Logs every time data is received
     client.on('Network.dataReceived', async (event) => {
-        if (requestSizes[event.requestId]) {
+        const request = await client.send('Network.getRequestPostData', { requestId: event.requestId }).catch(() => null);
+    if (!request || !request.request || !request.request.url) return; // Skip invalid requests
+    
+    const url = request.request.url;
+    if (!url.includes(".googlevideo.com/") || !url.includes("videoplayback")) return; // ✅ Ensures only VIDEO data is logged
+    
+       // if (requestSizes[event.requestId]) {
             const bytesReceived = event.dataLength; // Amount of data received in this instance
-            
+             console.log(`[LIVE] Bytes: ${bytesReceived} from ${url}`);
             // Capture real-time playback stats
             const videoStats = await page.evaluate(() => {
                 const video = document.querySelector('video');
@@ -67,7 +73,7 @@ const fs = require('fs');
                 // Save log entry to memory for file writing
                 logBuffer.push(`${utcTimestamp},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.bufferHealth}`);
             }
-        }
+       // }
     });
 
     //////////////////////////////////////////////
