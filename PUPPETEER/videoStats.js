@@ -49,19 +49,60 @@ const fs = require('fs');
         if (requestSizes[event.requestId]) {
             const { url, timestamp } = requestSizes[event.requestId];
             const bytesReceived = event.encodedDataLength; // The ACTUAL size of the downloaded chunk
-	    let resolution = "Unknown";
-	    
-	     try{
-             resolution = await page.evaluate(() => {
-		const video = document.querySelector('video');
-		return video ? `${video.videoWidth} x ${video.videoHeight}` : "Unknown";
-	     });
-	    }catch(error){
-		console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
-	    }
-	    console.log(`Resolution: ${resolution}`);
-	    
-            console.log(`[${timestamp}] VIDEO CHUNK: ${bytesReceived} bytes from ${url}`);
+         
+            let resolution = "Unknown";
+            let fps = "Unknown";
+            let codecs = "Unknown";
+            let connectionSpeed = "Unknown";
+            let networkActivity = "Unknown";
+            let bufferHealth = "Unknown";
+            try {
+                const videoStats = await page.evaluate(() => {
+                    const video = document.querySelector('video');
+                    if(!video) return null;
+
+                    return {
+                        resolution: `${video.videoWidth}x${video.videoHeight}`,
+                        fps: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().totalVideoFrames / video.getVideoPlaybackQuality().totalVideoFrames : "Unknown",
+                        framesDropped: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().droppedVideoFrames : "Unknown",
+                        codecs: video.canPlayType("video/webm; codecs=vp9") ? "VP9" : video.canPlayType("video/mp4; codecs=avc1") ? "H.264" : "Unknown",
+                        connectionSpeed: document.querySelector('.ytp-stat-speed') ? document.querySelector('.ytp-stat-speed').innerText : "Unknown",
+                        networkActivity: document.querySelector('.ytp-stat-network') ? document.querySelector('.ytp-stat-network').innerText : "Unknown",
+                        bufferHealth: document.querySelector('.ytp-stat-buffer') ? document.querySelector('.ytp-stat-buffer').innerText : "Unknown"
+                    };
+                });
+
+                if (videoStats) {
+                    resolution = videoStats.resolution;
+                    fps = videoStats.fps;
+                    framesDropped = videoStats.framesDropped;
+                    codecs = videoStats.codecs;
+                    connectionSpeed = videoStats.connectionSpeed;
+                    networkActivity = videoStats.networkActivity;
+                    bufferHealth = videoStats.bufferHealth;
+                }
+
+            }catch(error){
+                console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
+            }
+
+            /*
+            try{
+                resolution = await page.evaluate(() => {
+		            const video = document.querySelector('video');
+		            return video ? `${video.videoWidth} x ${video.videoHeight}` : "Unknown";
+	            });
+            }catch(error){
+		        console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
+	        }
+	        console.log(`Resolution: ${resolution}`);
+            */
+
+            // Format timestamp in UTC
+            const utcTimestamp = new Date().toISOString();
+            console.log(`[${utcTimestamp}] VIDEO CHUNK: ${bytesReceived} bytes | Resolution: ${resolution} | FPS: ${fps} | Frames Dropped: ${framesDropped} | Codecs: ${codecs} | Connection Speed: ${connectionSpeed} | Network Activity: ${networkActivity} | Buffer Health: ${bufferHealth} | URL: ${url}`);
+
+            //console.log(`[${timestamp}] VIDEO CHUNK: ${bytesReceived} bytes from ${url}`);
             logBuffer.push(`${timestamp},${bytesReceived},${url}`);
 
             delete requestSizes[event.requestId]; // Free up memory
