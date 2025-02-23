@@ -56,19 +56,28 @@ const fs = require('fs');
             let connectionSpeed = "Unknown";
             let networkActivity = "Unknown";
             let bufferHealth = "Unknown";
+            let color = "Unknown";
             try {
                 const videoStats = await page.evaluate(() => {
                     const video = document.querySelector('video');
+                    const player = document.getElementById('movie_player');
+
                     if(!video) return null;
 
                     return {
                         resolution: `${video.videoWidth}x${video.videoHeight}`,
-                        fps: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().totalVideoFrames / video.getVideoPlaybackQuality().totalVideoFrames : "Unknown",
-                        framesDropped: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().droppedVideoFrames : "Unknown",
-                        codecs: video.canPlayType("video/webm; codecs=vp9") ? "VP9" : video.canPlayType("video/mp4; codecs=avc1") ? "H.264" : "Unknown",
-                        connectionSpeed: document.querySelector('.ytp-stat-speed') ? document.querySelector('.ytp-stat-speed').innerText : "Unknown",
-                        networkActivity: document.querySelector('.ytp-stat-network') ? document.querySelector('.ytp-stat-network').innerText : "Unknown",
-                        bufferHealth: document.querySelector('.ytp-stat-buffer') ? document.querySelector('.ytp-stat-buffer').innerText : "Unknown"
+                        //fps: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().totalVideoFrames / video.getVideoPlaybackQuality().totalVideoFrames : "Unknown",
+                        //framesDropped: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().droppedVideoFrames : "Unknown",
+                        //codecs: video.canPlayType("video/webm; codecs=vp9") ? "VP9" : video.canPlayType("video/mp4; codecs=avc1") ? "H.264" : "Unknown",
+                        //connectionSpeed: document.querySelector('.ytp-stat-speed') ? document.querySelector('.ytp-stat-speed').innerText : "Unknown",
+                        //networkActivity: document.querySelector('.ytp-stat-network') ? document.querySelector('.ytp-stat-network').innerText : "Unknown",
+                        //bufferHealth: document.querySelector('.ytp-stat-buffer') ? document.querySelector('.ytp-stat-buffer').innerText : "Unknown"
+                        fps: "WHAT",
+                        framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames} | ${video.getVideoPlaybackQuality().totalVideoFrames}`,
+                        codecs: `${player.getStatsForNerds().codecs}`,
+                        connectionSpeed: `${player.getStatsForNerds().bandwidth_kbps}`,
+                        networkActivity: `${player.getStatsForNerds().network_activity_bytes}`,
+                        bufferHealth: `${player.getStatsForNerds().buffer_health_seconds}`,
                     };
                 });
 
