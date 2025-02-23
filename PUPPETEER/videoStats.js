@@ -37,6 +37,44 @@ const fs = require('fs');
     const requestSizes = {}; // Store request sizes
     let logBuffer = []; // Store log entries in memory
 
+
+
+    //////////////////////////////////////////////
+    // 🔥 REAL-TIME DATA LOGGING: Logs every time data is received
+    client.on('Network.dataReceived', async (event) => {
+        if (requestSizes[event.requestId]) {
+            const bytesReceived = event.dataLength; // Amount of data received in this instance
+            
+            // Capture real-time playback stats
+            const videoStats = await page.evaluate(() => {
+                const video = document.querySelector('video');
+                const player = document.getElementById('movie_player');
+                if (!video) return null;
+
+                return {
+                    resolution: `${video.videoWidth}x${video.videoHeight}`,
+                    fps: `${video.getVideoPlaybackQuality().totalFrameCount / video.duration}`,
+                    framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames} / ${video.getVideoPlaybackQuality().totalVideoFrames}`,
+                    codecs: `${player.getStatsForNerds().codecs}`,
+                    connectionSpeed: `${player.getStatsForNerds().bandwidth_kbps}`,
+                    networkActivity: `${player.getStatsForNerds().network_activity_bytes}`,
+                    bufferHealth: `${player.getStatsForNerds().buffer_health_seconds}`,
+                };
+            });
+
+            if (videoStats) {
+                const utcTimestamp = new Date().toISOString();
+                console.log(`[LIVE] [${utcTimestamp}] Bytes: ${bytesReceived} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s`);
+                
+                // Save log entry to memory for file writing
+                logBuffer.push(`${utcTimestamp},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.bufferHealth}`);
+            }
+        }
+    });
+
+    //////////////////////////////////////////////
+
+
     // Capture requests when a video chunk starts downloading
     client.on('Network.responseReceived', (event) => {
         if (event.response.url.includes(".googlevideo.com/") && event.response.url.includes("videoplayback")) {
@@ -66,12 +104,6 @@ const fs = require('fs');
 
                     return {
                         resolution: `${video.videoWidth}x${video.videoHeight}`,
-                        //fps: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().totalVideoFrames / video.getVideoPlaybackQuality().totalVideoFrames : "Unknown",
-                        //framesDropped: video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality().droppedVideoFrames : "Unknown",
-                        //codecs: video.canPlayType("video/webm; codecs=vp9") ? "VP9" : video.canPlayType("video/mp4; codecs=avc1") ? "H.264" : "Unknown",
-                        //connectionSpeed: document.querySelector('.ytp-stat-speed') ? document.querySelector('.ytp-stat-speed').innerText : "Unknown",
-                        //networkActivity: document.querySelector('.ytp-stat-network') ? document.querySelector('.ytp-stat-network').innerText : "Unknown",
-                        //bufferHealth: document.querySelector('.ytp-stat-buffer') ? document.querySelector('.ytp-stat-buffer').innerText : "Unknown"
                         fps: "WHAT",
                         framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames} | ${video.getVideoPlaybackQuality().totalVideoFrames}`,
                         codecs: `${player.getStatsForNerds().codecs}`,
@@ -94,18 +126,6 @@ const fs = require('fs');
             }catch(error){
                 console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
             }
-
-            /*
-            try{
-                resolution = await page.evaluate(() => {
-		            const video = document.querySelector('video');
-		            return video ? `${video.videoWidth} x ${video.videoHeight}` : "Unknown";
-	            });
-            }catch(error){
-		        console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
-	        }
-	        console.log(`Resolution: ${resolution}`);
-            */
 
             // Format timestamp in UTC
             const utcTimestamp = new Date().toISOString();
