@@ -40,13 +40,8 @@ const fs = require('fs');
     //////////////////////////////////////////////
     //REAL-TIME DATA LOGGING: Logs every time data is received
     client.on('Network.dataReceived', async (event) => {
-        const request = await client.send('Network.getRequestPostData', { requestId: event.requestId }).catch(() => null);
-    if (!request || !request.request || !request.request.url) return; // Skip invalid requests
-    
-    const url = request.request.url;
-    if (!url.includes(".googlevideo.com/") || !url.includes("videoplayback")) return; // ✅ Ensures only VIDEO data is logged
-    
-       // if (requestSizes[event.requestId]) {
+
+       if (requestSizes[event.requestId]) {
             const bytesReceived = event.dataLength; // Amount of data received in this instance
              console.log(`[LIVE] Bytes: ${bytesReceived} from ${url}`);
             // Capture real-time playback stats
@@ -73,18 +68,18 @@ const fs = require('fs');
                 // Save log entry to memory for file writing
                 logBuffer.push(`${utcTimestamp},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.bufferHealth}`);
             }
-       // }
+        }
     });
 
     //////////////////////////////////////////////
 
 
-    // Capture requests when a video chunk starts downloading
-    // client.on('Network.responseReceived', (event) => {
-    //     if (event.response.url.includes(".googlevideo.com/") && event.response.url.includes("videoplayback")) {
-    //         requestSizes[event.requestId] = { url: event.response.url, timestamp: new Date().toISOString() };
-    //     }
-    // });
+    //Capture requests when a video chunk starts downloading
+    client.on('Network.responseReceived', (event) => {
+        if (event.response.url.includes(".googlevideo.com/") && event.response.url.includes("videoplayback")) {
+            requestSizes[event.requestId] = { url: event.response.url, timestamp: new Date().toISOString() };
+        }
+    });
 
     // // Capture actual data size when the chunk finishes downloading
     // client.on('Network.loadingFinished', async (event) => {
