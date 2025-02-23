@@ -49,7 +49,18 @@ const fs = require('fs');
         if (requestSizes[event.requestId]) {
             const { url, timestamp } = requestSizes[event.requestId];
             const bytesReceived = event.encodedDataLength; // The ACTUAL size of the downloaded chunk
-
+	    let resolution = "Unknown";
+	    
+	     try{
+             resolution = await page.evaluate(() => {
+		const video = document.querySelector('video');
+		return video ? `${video.videoWidth} x ${video.videoHeight}` : "Unknown";
+	     });
+	    }catch(error){
+		console.log(`[ERROR] Could not get the video resolution. Error: ${error}`);
+	    }
+	    console.log(`Resolution: ${resolution}`);
+	    
             console.log(`[${timestamp}] VIDEO CHUNK: ${bytesReceived} bytes from ${url}`);
             logBuffer.push(`${timestamp},${bytesReceived},${url}`);
 
