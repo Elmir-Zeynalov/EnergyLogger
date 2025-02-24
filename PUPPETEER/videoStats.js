@@ -77,9 +77,9 @@ const fs = require('fs');
                 framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames}`,
                 framesTotal : `${video.getVideoPlaybackQuality().totalVideoFrames}`,
                 codecs: `${nerdStats.codecs}`,
-                bandwidth_kbps: `${nerdStats.bandwidth_kbps}`,
-                networkActivity: `${nerdStats.network_activity_bytes}`,
-                bufferHealth: `${nerdStats.buffer_health_seconds}`,
+                bandwidth_kbps: nerdStats.bandwidth_kbps.replace(/\D/g, ''),
+                networkActivity: nerdStats.network_activity_bytes.replace(/\D/g, ''),
+                bufferHealth: nerdStats.buffer_health_seconds.replace(/[^\d.]/g, ''),
             };
         });
         
