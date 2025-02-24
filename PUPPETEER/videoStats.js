@@ -423,7 +423,7 @@ const fs = require('fs');
 
         if (videoStats) {
             const utcTimestamp = new Date().toISOString();
-            console.log(`[LIVE] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s`);
+            console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s`);
 
             // Save log entry to memory for file writing
             logBuffer.push(`${utcTimestamp},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.bufferHealth}`);
