@@ -34,7 +34,7 @@ const fs = require('fs');
 
     const csvFilePath = "youtube_network_log.csv";
     if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Resolution,FPS,Frames_Dropped,Total_Frames,Codecs,Bandwidth_kbps,Network_Activity_KB,Buffer_Health_s\n");
+        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Resolution,FPS,Frames_Dropped,Total_Frames,Codecs,Bandwidth_kbps,Network_Activity_KB,Buffer_Health_s,Live_Latency_s,Latency_Mode\n");
     }
 
     const videoRequests = new Set(); // Store only video request IDs
@@ -66,7 +66,7 @@ const fs = require('fs');
         const videoStats = await page.evaluate(() => {
             const video = document.querySelector('video');
             const player = document.getElementById('movie_player');
-            
+
             if (!video) return null;
             if (!player) return null;
 
@@ -81,12 +81,16 @@ const fs = require('fs');
                 bandwidth_kbps: nerdStats.bandwidth_kbps.replace(/\D/g, ''),
                 networkActivity: nerdStats.network_activity_bytes.replace(/\D/g, ''),
                 bufferHealth: nerdStats.buffer_health_seconds.replace(/[^\d.]/g, ''),
+                
+                //youtube live fields
+                liveLatency: nerdStats.live_latency_secs?.replace(/[^\d.]/g, '') ?? null,
+                liveMode: nerdStats.live_mode ?? null,
             };
         });
 
-        console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}][Resolution: ${videoStats.resolution}][FPS: ${videoStats.fps}][FramesDropped: ${videoStats.framesDropped}][FramesTotal: ${videoStats.framesTotal}][Codec: ${videoStats.codecs}][Bandwidth: ${videoStats.bandwidth_kbps}][NetworkActivity: ${videoStats.networkActivity}][BufferHealth: ${videoStats.bufferHealth}]`);
+        console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}][Resolution: ${videoStats.resolution}][FPS: ${videoStats.fps}][FramesDropped: ${videoStats.framesDropped}][FramesTotal: ${videoStats.framesTotal}][Codec: ${videoStats.codecs}][Bandwidth: ${videoStats.bandwidth_kbps}][NetworkActivity: ${videoStats.networkActivity}][BufferHealth: ${videoStats.bufferHealth}] [Live Latency: ${videoStats.liveLatency}] [Latency Mode: ${videoStats.liveMode}]`);
 
-        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
+        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth},${videoStats.liveLatency},${videoStats.liveMode}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
     });
 
