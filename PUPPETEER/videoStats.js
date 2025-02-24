@@ -71,7 +71,7 @@ const fs = require('fs');
 
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
-                fps: `${video.getVideoPlaybackQuality().totalFrameCount / video.duration}`,
+                fps: `NA`,
                 framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames}`,
                 framesTotal : `${video.getVideoPlaybackQuality().totalVideoFrames}`,
                 codecs: `${player.getStatsForNerds().codecs}`,
@@ -81,9 +81,9 @@ const fs = require('fs');
             };
         });
         
-        console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s | ${video.getVideoPlaybackQuality().totalVideoFrames}`);
+        console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s | ${videoStats.totalVideoFrames}`);
         //logBuffer.push(`${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}`);
-        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.totalFrames},${videoStats.framesTotal},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
+        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
     });
 
