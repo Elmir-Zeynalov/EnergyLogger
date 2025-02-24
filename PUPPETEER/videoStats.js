@@ -66,6 +66,7 @@ const fs = require('fs');
         const videoStats = await page.evaluate(() => {
             const video = document.querySelector('video');
             const player = document.getElementById('movie_player');
+            
             if (!video) return null;
             if (!player) return null;
 
@@ -83,9 +84,8 @@ const fs = require('fs');
             };
         });
 
-        console.log(`[LIVE] [${utcTimestamp}] [id: ${requestId}] | [BytesReceived: ${bytesReceived}] | [Resolution: ${videoStats.resolution}] | [FPS: ${videoStats.fps}] | \n[FramesDropped: ${videoStats.framesDropped}] | [FramesTotal: ${videoStats.framesTotal}] | [Codec: ${videoStats.codecs}] | [Bandwidth: ${videoStats.bandwidth_kbps}] | [NetworkActivity: ${videoStats.networkActivity}] | [BufferHealth: ${videoStats.bufferHealth}]`);
+        console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}][Resolution: ${videoStats.resolution}][FPS: ${videoStats.fps}][FramesDropped: ${videoStats.framesDropped}][FramesTotal: ${videoStats.framesTotal}][Codec: ${videoStats.codecs}][Bandwidth: ${videoStats.bandwidth_kbps}][NetworkActivity: ${videoStats.networkActivity}][BufferHealth: ${videoStats.bufferHealth}]`);
 
-        //logBuffer.push(`${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}`);
         const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
     });
