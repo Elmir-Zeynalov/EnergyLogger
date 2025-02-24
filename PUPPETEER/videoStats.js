@@ -82,8 +82,9 @@ const fs = require('fs');
                 bufferHealth: nerdStats.buffer_health_seconds.replace(/[^\d.]/g, ''),
             };
         });
-        
-        console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s | ${videoStats.framesTotal}`);
+
+        console.log(`[LIVE] [${utcTimestamp}] [id: ${requestId}] | [BytesReceived: ${bytesReceived}] | [Resolution: ${videoStats.resolution}] | [FPS: ${videoStats.fps}] | \n[FramesDropped: ${videoStats.framesDropped}] | [FramesTotal: ${videoStats.framesTotal}] | [Codec: ${videoStats.codecs}] | [Bandwidth: ${videoStats.bandwidth_kbps}] | [NetworkActivity: ${videoStats.networkActivity}] | [BufferHealth: ${videoStats.bufferHealth}]`);
+
         //logBuffer.push(`${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}`);
         const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
@@ -101,5 +102,4 @@ const fs = require('fs');
             delete requestSizes[requestId];
         }
     });
-
 })();
