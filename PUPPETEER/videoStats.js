@@ -69,19 +69,21 @@ const fs = require('fs');
             if (!video) return null;
             if (!player) return null;
 
+            const nerdStats = player.getStatsForNerds();
+
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
-                fps: `NA`,
+                fps: `${nerdStats.resolution.split("@")[1].split(" ")[0]}`,
                 framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames}`,
                 framesTotal : `${video.getVideoPlaybackQuality().totalVideoFrames}`,
-                codecs: `${player.getStatsForNerds().codecs}`,
-                connectionSpeed: `${player.getStatsForNerds().bandwidth_kbps}`,
-                networkActivity: `${player.getStatsForNerds().network_activity_bytes}`,
-                bufferHealth: `${player.getStatsForNerds().buffer_health_seconds}`,
+                codecs: `${nerdStats.codecs}`,
+                connectionSpeed: `${nerdStats.bandwidth_kbps}`,
+                networkActivity: `${nerdStats.network_activity_bytes}`,
+                bufferHealth: `${nerdStats.buffer_health_seconds}`,
             };
         });
         
-        console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s | ${videoStats.totalVideoFrames}`);
+        console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s | ${videoStats.framesTotal}`);
         //logBuffer.push(`${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}`);
         const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
