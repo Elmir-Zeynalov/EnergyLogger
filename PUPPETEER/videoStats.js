@@ -37,7 +37,6 @@ const fs = require('fs');
         fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Resolution,FPS,Frames_Dropped,Total_Frames,Codecs,Connection_Speed,Network_Activity,Buffer_Health\n");
     }
 
-
     const videoRequests = new Set(); // Store only video request IDs
     const requestSizes = {}; // Store total bytes per request
     let logBuffer = []; // Store log entries in memory
@@ -73,7 +72,8 @@ const fs = require('fs');
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
                 fps: `${video.getVideoPlaybackQuality().totalFrameCount / video.duration}`,
-                framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames} || ${video.getVideoPlaybackQuality().totalVideoFrames}`,
+                framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames}`,
+                framesTotal : `${video.getVideoPlaybackQuality().totalVideoFrames}`,
                 codecs: `${player.getStatsForNerds().codecs}`,
                 connectionSpeed: `${player.getStatsForNerds().bandwidth_kbps}`,
                 networkActivity: `${player.getStatsForNerds().network_activity_bytes}`,
@@ -83,7 +83,7 @@ const fs = require('fs');
         
         console.log(`[LIVE] [ID:${requestId}] [${utcTimestamp}] Bytes: ${bytesReceived} | Total So Far: ${requestSizes[requestId]} | Resolution: ${videoStats.resolution} | FPS: ${videoStats.fps} | Buffer: ${videoStats.bufferHealth}s`);
         //logBuffer.push(`${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}`);
-        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.totalFrames},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
+        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.totalFrames},${videoStats.framesTotal},${videoStats.codecs},${videoStats.connectionSpeed},${videoStats.networkActivity},${videoStats.bufferHealth}\n`;
         fs.appendFileSync(csvFilePath, csvEntry);
     });
 
@@ -100,11 +100,4 @@ const fs = require('fs');
         }
     });
 
-    //Save logs to file every 5 seconds
-    //setInterval(() => {
-    //    if (logBuffer.length > 0) {
-    //        fs.appendFileSync("youtube_network_log.csv", logBuffer.join("\n") + "\n");
-    //        logBuffer = [];
-    //    }
-    // }, 5000);
 })();
