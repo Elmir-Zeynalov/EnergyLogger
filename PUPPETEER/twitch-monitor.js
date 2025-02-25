@@ -209,105 +209,55 @@ const fs = require('fs');
     });
 
     const page = await browser.newPage();
-    const client = await page.target().createCDPSession(); // CDP for network monitoring
+    const client = await page.target().createCDPSession();
 
     console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/sinatraavod', { waitUntil: 'networkidle2' });
+    await page.goto('https://www.twitch.tv/silky', { waitUntil: 'networkidle2' });
 
-    console.log("Unregistering service workers & disabling cache...");
-    await page.evaluate(() => {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-            registrations.forEach((reg) => reg.unregister());
-        });
-    });
+    console.log("Disabling cache...");
+    await client.send('Network.setCacheDisabled', { cacheDisabled: true }); 
+    await client.send('Network.enable');
 
-    await client.send('Network.setCacheDisabled', { cacheDisabled: true }); // Disable browser cache
-    await client.send('Network.enable'); // Start network monitoring
-
-    const csvFilePath = "twitch_live_log.csv";
+    const csvFilePath = "twitch_segment_log.csv";
     if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Total_Bytes,Content_Type,URL\n");
+        fs.writeFileSync(csvFilePath, "Timestamp,Request_ID,Bytes_Received,Total_Bytes,URL\n");
     }
 
-    const requestSizes = {}; // Stores total bytes received per request
+    const requestSizes = {}; 
 
-    // 🔥 LOG EVERY SINGLE REQUEST 🔥
+    // 🔥 LOG WHEN A VIDEO SEGMENT REQUEST STARTS
     client.on('Network.requestWillBeSent', (event) => {
         const url = event.request.url;
-        const type = event.request.resourceType || "UNKNOWN";
-        const method = event.request.method;
-
-        requestSizes[event.requestId] = { bytes: 0, url, type, method };
-        console.log(`[REQ] ${type} ${method}: ${url}`);
-
-        const logEntry = `${Date.now()},${event.requestId},0,0,N/A,${url}\n`;
-        fs.appendFileSync(csvFilePath, logEntry);
-    });
-
-    // 🔥 LOG LIVE DATA RECEIVED (INCLUDING OCTET-STREAM) 🔥
-    client.on('Network.responseReceived', (event) => {
-        if (event.response.mimeType === "application/octet-stream") {
-            console.log(`[OCTET-STREAM] Detected for Request ID ${event.requestId}: ${event.response.url}`);
+        
+        if (url.includes(".ttvnw.net") && url.includes(".ts")) {  // Only log Twitch video segment requests
+            requestSizes[event.requestId] = { bytes: 0, url };
+            console.log(`[START] Request ID: ${event.requestId} - ${url}`);
         }
     });
 
+    // 🔥 LOG CHUNKED DATA AS IT ARRIVES
     client.on('Network.dataReceived', (event) => {
         const requestId = event.requestId;
         const bytesReceived = event.dataLength;
-        const utcTimestamp = Date.now();
 
-        if (!requestSizes[requestId]) {
-            requestSizes[requestId] = { bytes: 0, url: "UNKNOWN", type: "UNKNOWN" };
+        if (requestSizes[requestId]) {
+            requestSizes[requestId].bytes += bytesReceived;
+            console.log(`[UPDATE] ${requestId} - +${bytesReceived} bytes (Total: ${requestSizes[requestId].bytes})`);
         }
-
-        requestSizes[requestId].bytes += bytesReceived;
-        console.log(`[LIVE] ${requestId} - ${bytesReceived} bytes received (Total: ${requestSizes[requestId].bytes})`);
-
-        const logEntry = `${utcTimestamp},${requestId},${bytesReceived},${requestSizes[requestId].bytes},"${requestSizes[requestId]?.type || "UNKNOWN"}","${requestSizes[requestId]?.url || "UNKNOWN"}"\n`;
-        fs.appendFileSync(csvFilePath, logEntry);
     });
 
-    // 🔥 LOG FINAL TOTAL BYTES RECEIVED 🔥
+    // 🔥 LOG FINAL TOTAL BYTES WHEN REQUEST FINISHES
     client.on('Network.loadingFinished', (event) => {
         const requestId = event.requestId;
 
         if (requestSizes[requestId]) {
-            console.log(`[COMPLETE] ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
+            console.log(`[COMPLETE] Request ID: ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
 
-            const logEntry = `${Date.now()},${requestId},0,${requestSizes[requestId].bytes},${requestSizes[requestId].type},${requestSizes[requestId].url}\n`;
+            const logEntry = `${Date.now()},${requestId},${requestSizes[requestId].bytes},${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
             fs.appendFileSync(csvFilePath, logEntry);
 
-            delete requestSizes[requestId]; // Cleanup to prevent memory leaks
+            delete requestSizes[requestId]; 
         }
     });
-
-    // 🔥 LOG FETCH() API REQUESTS 🔥
-    await page.evaluate(() => {
-        (function() {
-            const originalFetch = window.fetch;
-            window.fetch = async (...args) => {
-                console.log("[FETCH INTERCEPT]", args[0]);
-                return originalFetch(...args);
-            };
-        })();
-    });
-
-    // 🔥 LOG ALL WebSocket Activity 🔥
-    client.on('Network.webSocketCreated', (event) => {
-        console.log(`[WS] WebSocket Connection Opened: ${event.url}`);
-    });
-
-    client.on('Network.webSocketFrameReceived', (event) => {
-        console.log(`[WS IN] WebSocket Frame Received: ${event.response.payloadData.length} bytes`);
-    });
-
-    client.on('Network.webSocketFrameSent', (event) => {
-        console.log(`[WS OUT] WebSocket Frame Sent: ${event.response.payloadData.length} bytes`);
-    });
-
-    // Periodically print request count
-    setInterval(() => {
-        console.log(`[STATUS] Tracking ${Object.keys(requestSizes).length} active requests`);
-    }, 3000);
 
 })();
