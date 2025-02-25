@@ -359,3 +359,113 @@ const fs = require('fs');
     });
 
 })();
+
+
+
+////
+
+
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+    const client = await page.target().createCDPSession();
+
+    console.log("Navigating to Twitch...");
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
+
+    console.log("Disabling cache & bypassing service workers...");
+    await client.send('Network.setCacheDisabled', { cacheDisabled: true });
+    await page.evaluate(() => {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((reg) => reg.unregister());
+        });
+    });
+
+    console.log("Enabling Fetch API tracking...");
+    await client.send('Fetch.enable', {}); // Enables deeper Fetch API tracking
+
+    console.log("Starting network monitoring...");
+    await client.send('Network.enable');
+
+    const csvFilePath = "twitch_fetch_debug.csv";
+    if (!fs.existsSync(csvFilePath)) {
+        fs.writeFileSync(csvFilePath, "Timestamp,Request_ID,Event_Type,URL,Status,Content_Type,Bytes_Received,Total_Bytes\n");
+    }
+
+    const requestData = {}; // Store active requests
+
+    // 🔥 LOG WHEN A VIDEO SEGMENT REQUEST STARTS
+    client.on('Network.requestWillBeSent', (event) => {
+        const url = event.request.url;
+        if (url.includes(".ttvnw.net") && url.includes(".ts")) {
+            requestData[event.requestId] = { url, bytes: 0 };
+            console.log(`[START] Request ID: ${event.requestId} - ${url}`);
+
+            const logEntry = `${Date.now()},${event.requestId},REQUEST_SENT,${url},N/A,N/A,0,0\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+        }
+    });
+
+    // 🔥 LOG FETCH API REQUESTS
+    client.on('Fetch.requestPaused', async (event) => {
+        if (event.request.url.includes(".ttvnw.net") && event.request.url.includes(".ts")) {
+            console.log(`[FETCH API] Caught request: ${event.request.url}`);
+
+            const logEntry = `${Date.now()},${event.requestId},FETCH_REQUEST,${event.request.url},N/A,N/A,0,0\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+        }
+
+        await client.send('Fetch.continueRequest', { requestId: event.requestId }); // Let the request continue
+    });
+
+    // 🔥 LOG RESPONSE DETAILS & TRY TO DETECT CONTENT TYPE
+    client.on('Network.responseReceived', (event) => {
+        const requestId = event.requestId;
+        if (requestData[requestId]) {
+            const contentType = event.response.mimeType || event.response.headers['content-type'] || "UNKNOWN";
+            requestData[requestId].contentType = contentType;
+
+            console.log(`[RESPONSE] ${requestId} - Content-Type: ${contentType}`);
+
+            const logEntry = `${Date.now()},${requestId},RESPONSE_RECEIVED,${requestData[requestId].url},${event.response.status},${contentType},0,0\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+        }
+    });
+
+    // 🔥 LOG EVERY BYTE RECEIVED
+    client.on('Network.dataReceived', (event) => {
+        const requestId = event.requestId;
+        const bytesReceived = event.dataLength;
+
+        if (requestData[requestId]) {
+            requestData[requestId].bytes += bytesReceived;
+            console.log(`[DATA] ${requestId} - +${bytesReceived} bytes (Total: ${requestData[requestId].bytes})`);
+
+            const logEntry = `${Date.now()},${requestId},DATA_RECEIVED,${requestData[requestId].url},N/A,${requestData[requestId].contentType || "UNKNOWN"},${bytesReceived},${requestData[requestId].bytes}\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+        }
+    });
+
+    // 🔥 LOG FINAL REQUEST COMPLETION & TOTAL BYTES
+    client.on('Network.loadingFinished', (event) => {
+        const requestId = event.requestId;
+        if (requestData[requestId]) {
+            console.log(`[COMPLETE] Request ID: ${requestId} - Total Bytes: ${requestData[requestId].bytes} - ${requestData[requestId].url}`);
+
+            const logEntry = `${Date.now()},${requestId},REQUEST_COMPLETED,${requestData[requestId].url},N/A,${requestData[requestId].contentType || "UNKNOWN"},FINAL,${requestData[requestId].bytes}\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+
+            delete requestData[requestId];
+        }
+    });
+
+})();
