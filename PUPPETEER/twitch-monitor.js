@@ -20,21 +20,43 @@ const puppeteer = require('puppeteer');
     // Check if button exists before clicking
     const settingsButton = await page.$('[data-a-target="player-settings-button"]');
     if (!settingsButton) {
-        console.log("❌ Settings button NOT found!");
+        console.log("Settings button NOT found!");
         await browser.close();
         return;
     } else {
-        console.log("✅ Settings button found!");
+        console.log("Settings button found!");
     }
 
-    // Scroll to button and click
+    //
     await page.evaluate(() => {
         document.querySelector('[data-a-target="player-settings-button"]');
     });
-    //await new Promise(r => setTimeout(r, 1000));
 
+    //click the settings button and open menu
+    //await new Promise(r => setTimeout(r, 1000));
     await settingsButton.click();
     console.log("Clicked settings button!");
+
+
+    await page.waitForTimeout(500); // Allow some time for animation
+
+    // Step 3: Click the "Advanced" button
+    await page.waitForSelector('[data-a-target="player-settings-menu-item-advanced"]', { timeout: 5000 });
+    const advancedSettingsButton = await page.$('[data-a-target="player-settings-menu-item-advanced"]');
+    await advancedSettingsButton.click();
+    console.log("Clicked advanced settings button!");
+
+
+        // Step 1: Click the Settings button
+
+    // Step 2: Wait for the settings menu to load
+    await page.waitForTimeout(500); // Allow some time for animation
+
+    // Step 3: Click the "Advanced" button
+    await page.waitForSelector('[data-a-target="player-settings-menu-item-advanced"]', { timeout: 5000 });
+    await page.click('[data-a-target="player-settings-menu-item-advanced"]');
+
+    
 
     // Wait for video stats button
     console.log("Waiting for video stats toggle...");
