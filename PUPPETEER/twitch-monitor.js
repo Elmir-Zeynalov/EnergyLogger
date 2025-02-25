@@ -548,3 +548,41 @@ const puppeteer = require('puppeteer');
     console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
 })();
 
+///idk anymore
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,  // Set to true if you want it to run in background
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000); // Prevents timeout issues
+
+    // Enable request interception
+    await page.setRequestInterception(true);
+    page.on('request', (request) => request.continue());
+
+    // Monitor network responses
+    page.on('response', async (response) => {
+        const url = response.url();
+
+        // Only capture Twitch HLS video segment requests (".ts")
+        if (url.includes('.ts') && response.status() === 200) {
+            try {
+                const buffer = await response.buffer();
+                console.log(`[${new Date().toISOString()}] Downloaded ${buffer.length} bytes from ${url}`);
+            } catch (error) {
+                console.warn(`[WARNING] Could not fetch response body for ${url}: ${error.message}`);
+            }
+        }
+    });
+
+    // Open Twitch stream (replace with your target stream)
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'domcontentloaded' });
+
+    console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
+})();
