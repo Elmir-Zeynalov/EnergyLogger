@@ -66,47 +66,107 @@ const fs = require('fs');
     await page.click('[data-a-target="player-settings-submenu-advanced-video-stats"]');
     console.log("3.Clicked video stats!");
 
+    // Capture ALL requests (including Fetch API & WebSockets)
+    client.on('Network.requestWillBeSent', (event) => {
+        const url = event.request.url;
+        
+        if (
+            url.includes("video-weaver") || 
+            url.includes("video-edge") || 
+            url.includes(".ttvnw.net") || 
+            url.includes(".m3u8") || 
+            url.includes(".ts") || 
+            url.includes("amazon-ivs")
+        ) {
+            requestSizes[event.requestId] = { bytes: 0, url, type: event.request.resourceType };
+            trackedRequests.add(event.requestId);
+            console.log(`[REQUEST] ${event.request.resourceType.toUpperCase()} - ${url}`);
+        }
+    });
 
-    client.on('Network.responseReceived', (event) => {
-            const url = event.response.url;
-            if (url.includes("video-weaver") || url.includes("video-edge") || url.includes(".ttvnw.net")) {
-                if (url.includes(".ts")) { // Ensure it's a video segment
-                    videoRequests.add(event.requestId);
-                    requestSizes[event.requestId] = { bytes: 0, url };
-                    console.log(`[TRACK] Video Segment Requested: ${url}`);
-                }
-            }
-        });
-
-
-        // Track bytes received for video segments
+    // Track actual data received
     client.on('Network.dataReceived', async (event) => {
         const requestId = event.requestId;
         const utcTimestamp = Date.now();
         const bytesReceived = event.dataLength;
 
-        if (!requestSizes.hasOwnProperty(requestId)) {
-            requestSizes[requestId] = 0; // Initialize if missing
+        if (requestSizes[requestId]) {
+            requestSizes[requestId].bytes += bytesReceived;
         }
 
-        requestSizes[requestId] += bytesReceived;
+        // Log to CSV
+        if (requestSizes[requestId]) {
+            const logEntry = `${utcTimestamp},${requestId},${bytesReceived},${requestSizes[requestId].type},${requestSizes[requestId].url}\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+        }
 
-        console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}]`);
-
+        console.log(`[DATA] ${requestId} - ${bytesReceived} bytes`);
     });
 
-        // Log final total bytes when request finishes
+    // Finalize logs when request is finished
     client.on('Network.loadingFinished', (event) => {
         const requestId = event.requestId;
 
-        if (videoRequests.has(requestId)) {
-            console.log(`[FINAL] Request ${requestId} completed. Total Bytes: ${requestSizes[requestId]}`);
-
-            // Cleanup
-            videoRequests.delete(requestId);
-            delete requestSizes[requestId];
+        if (requestSizes[requestId]) {
+            console.log(`[COMPLETE] ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
+            delete requestSizes[requestId]; // Cleanup to avoid memory buildup
         }
     });
+
+    // Monitor WebSockets (Twitch may stream video over `wss://`)
+    client.on('Network.webSocketCreated', (event) => {
+        console.log(`[WS] WebSocket Connection Opened: ${event.url}`);
+    });
+
+    client.on('Network.webSocketFrameReceived', (event) => {
+        console.log(`[WS] WebSocket Frame - ${event.response.payloadData.length} bytes`);
+    });
+
+    client.on('Network.webSocketFrameSent', (event) => {
+        console.log(`[WS] WebSocket Frame Sent - ${event.response.payloadData.length} bytes`);
+    });
+
+
+    // client.on('Network.responseReceived', (event) => {
+    //         const url = event.response.url;
+    //         if (url.includes("video-weaver") || url.includes("video-edge") || url.includes(".ttvnw.net")) {
+    //             if (url.includes(".ts")) { // Ensure it's a video segment
+    //                 videoRequests.add(event.requestId);
+    //                 requestSizes[event.requestId] = { bytes: 0, url };
+    //                 console.log(`[TRACK] Video Segment Requested: ${url}`);
+    //             }
+    //         }
+    //     });
+
+
+    //     // Track bytes received for video segments
+    // client.on('Network.dataReceived', async (event) => {
+    //     const requestId = event.requestId;
+    //     const utcTimestamp = Date.now();
+    //     const bytesReceived = event.dataLength;
+
+    //     if (!requestSizes.hasOwnProperty(requestId)) {
+    //         requestSizes[requestId] = 0; // Initialize if missing
+    //     }
+
+    //     requestSizes[requestId] += bytesReceived;
+
+    //     console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}]`);
+
+    // });
+
+    //     // Log final total bytes when request finishes
+    // client.on('Network.loadingFinished', (event) => {
+    //     const requestId = event.requestId;
+
+    //     if (videoRequests.has(requestId)) {
+    //         console.log(`[FINAL] Request ${requestId} completed. Total Bytes: ${requestSizes[requestId]}`);
+
+    //         // Cleanup
+    //         videoRequests.delete(requestId);
+    //         delete requestSizes[requestId];
+    //     }
+    // });
 
 
     // Wait for stats to load
