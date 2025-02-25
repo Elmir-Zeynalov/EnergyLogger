@@ -619,20 +619,18 @@ const puppeteer = require('puppeteer');
 
 
 
-//newnew
 const puppeteer = require('puppeteer');
 
 (async () => {
     const browser = await puppeteer.launch({ headless: false });
     const page = await browser.newPage();
 
-    await page.setRequestInterception(true);
-
-    page.on('request', request => {
-        if (request.url().includes('.ts') || request.url().includes('.m3u8')) {
-            console.log(`[Request] ${request.url()}`);
+    // Log requests passively without blocking them
+    page.on('response', async (response) => {
+        const url = response.url();
+        if (url.includes('.ts') || url.includes('.m3u8')) {
+            console.log(`[Response] ${url} - ${response.headers()['content-length']} bytes`);
         }
-        request.continue();
     });
 
     await page.goto('https://www.twitch.tv/YOUR_STREAM_HERE');
