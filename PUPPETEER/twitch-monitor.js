@@ -469,3 +469,41 @@ const fs = require('fs');
     });
 
 })();
+
+
+
+///
+
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        headless: false, // Set to true to run in the background
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    // Enable request interception
+    await page.setRequestInterception(true);
+
+    page.on('request', (request) => {
+        request.continue(); // Continue the request normally
+    });
+
+    // Listen for response data
+    page.on('response', async (response) => {
+        const url = response.url();
+
+        // Only capture Twitch video segment requests
+        if (url.includes('.m4s') || url.includes('.ts')) {
+            const buffer = await response.buffer();
+            console.log(`[${new Date().toISOString()}] Downloaded ${buffer.length} bytes from ${url}`);
+        }
+    });
+
+    // Open the Twitch stream (Replace URL with your desired channel)
+    await page.goto('https://www.twitch.tv/YOUR_CHANNEL', { waitUntil: 'networkidle2' });
+
+    console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
+})();
