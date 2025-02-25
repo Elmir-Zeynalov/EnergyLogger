@@ -1,30 +1,40 @@
 const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-
 
 (async () => {
     const browser = await puppeteer.launch({
-        userDataDir: "/home/pi/.config/chromium",
-        executablePath: '/usr/bin/chromium-browser',
-        headless: false,
+        headless: false,  // Set to 'true' if you don't need the UI
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
-    const client = await page.target().createCDPSession();
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
 
-    console.log("Loading Twitch Stream...");
-    await page.goto('https://www.twitch.tv/YOUR_STREAMER_NAME', { waitUntil: 'load' });
+    // Wait for the settings button to appear
+    await page.waitForSelector('[data-a-target="player-settings-button"]');
+    console.log("Found settings button. Clicking...");
+    await page.click('[data-a-target="player-settings-button"]');
 
+    // Wait for the Video Stats button inside the settings menu
+    await page.waitForSelector('[data-a-target="player-settings-submenu-advanced-video-stats"]', { timeout: 5000 });
+    console.log("Found Video Stats button. Clicking...");
+    await page.click('[data-a-target="player-settings-submenu-advanced-video-stats"]');
 
-        await client.send('Network.enable');
-        const csvFilePath = "twitch_network_log.csv";
-        if (!fs.existsSync(csvFilePath)) {
-            fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Resolution,FPS,Frames_Dropped,Frames_Total\n");
-        }
+    // Wait for stats to appear
+    await page.waitForSelector('[data-a-target="player-overlay-video-stats-row"]', { timeout: 5000 });
 
-        const videoRequests = new Set();
-        const requestSizes = {};
-        
+    // Extract video stats
+    const stats = await page.evaluate(() => {
+        let statsData = {};
+        document.querySelectorAll('[data-a-target="player-overlay-video-stats-row"]').forEach(row => {
+            let name = row.querySelector('td:first-child p').innerText;
+            let value = row.querySelector('td:last-child p').innerText;
+            statsData[name] = value;
+        });
+        return statsData;
+    });
+
+    console.log("Extracted Video Stats:", stats);
+
+    // Close browser or keep running for real-time updates
+    // await browser.close();
 })();
