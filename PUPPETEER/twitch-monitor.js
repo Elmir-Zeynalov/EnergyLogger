@@ -23,7 +23,7 @@ const fs = require('fs');
     }
 
     const videoRequests = new Set(); // Stores active video request IDs
-    const requestSizes = {}; // Stores total bytes received per request
+
 
     // Wait for settings button
     console.log("Waiting for settings button...");
@@ -66,10 +66,14 @@ const fs = require('fs');
     await page.click('[data-a-target="player-settings-submenu-advanced-video-stats"]');
     console.log("3.Clicked video stats!");
 
+    const requestSizes = {};
+    const trackedRequests = new Set();
+
     // Capture ALL requests (including Fetch API & WebSockets)
     client.on('Network.requestWillBeSent', (event) => {
         const url = event.request.url;
-        
+        const type = event.request.resourceType ? event.request.resourceType.toUpperCase() : "UNKNOWN"; // Fix applied here ✅
+
         if (
             url.includes("video-weaver") || 
             url.includes("video-edge") || 
@@ -78,9 +82,9 @@ const fs = require('fs');
             url.includes(".ts") || 
             url.includes("amazon-ivs")
         ) {
-            requestSizes[event.requestId] = { bytes: 0, url, type: event.request.resourceType };
+            requestSizes[event.requestId] = { bytes: 0, url, type };
             trackedRequests.add(event.requestId);
-            console.log(`[REQUEST] ${event.request.resourceType.toUpperCase()} - ${url}`);
+            console.log(`[REQUEST] ${type} - ${url}`);
         }
     });
 
@@ -125,7 +129,6 @@ const fs = require('fs');
     client.on('Network.webSocketFrameSent', (event) => {
         console.log(`[WS] WebSocket Frame Sent - ${event.response.payloadData.length} bytes`);
     });
-
 
     // client.on('Network.responseReceived', (event) => {
     //         const url = event.response.url;
