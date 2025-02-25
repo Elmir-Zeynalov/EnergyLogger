@@ -212,13 +212,13 @@ const fs = require('fs');
     const client = await page.target().createCDPSession();
 
     console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/silky', { waitUntil: 'networkidle2' });
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
 
     console.log("Disabling cache...");
     await client.send('Network.setCacheDisabled', { cacheDisabled: true }); 
     await client.send('Network.enable');
 
-    const csvFilePath = "twitch_segment_log.csv";
+    const csvFilePath = "twitch_segment_data.csv";
     if (!fs.existsSync(csvFilePath)) {
         fs.writeFileSync(csvFilePath, "Timestamp,Request_ID,Bytes_Received,Total_Bytes,URL\n");
     }
@@ -230,7 +230,7 @@ const fs = require('fs');
         const url = event.request.url;
         
         if (url.includes(".ttvnw.net") && url.includes(".ts")) {  // Only log Twitch video segment requests
-            requestSizes[event.requestId] = { bytes: 0, url };
+            requestSizes[event.requestId] = { url, bytes: 0 };
             console.log(`[START] Request ID: ${event.requestId} - ${url}`);
         }
     });
@@ -242,7 +242,11 @@ const fs = require('fs');
 
         if (requestSizes[requestId]) {
             requestSizes[requestId].bytes += bytesReceived;
-            console.log(`[UPDATE] ${requestId} - +${bytesReceived} bytes (Total: ${requestSizes[requestId].bytes})`);
+            console.log(`[DATA] ${requestId} - +${bytesReceived} bytes (Total: ${requestSizes[requestId].bytes})`);
+            
+            // Append each data chunk to CSV
+            const logEntry = `${Date.now()},${requestId},${bytesReceived},${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
         }
     });
 
@@ -253,7 +257,8 @@ const fs = require('fs');
         if (requestSizes[requestId]) {
             console.log(`[COMPLETE] Request ID: ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
 
-            const logEntry = `${Date.now()},${requestId},${requestSizes[requestId].bytes},${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
+            // Append final total to CSV
+            const logEntry = `${Date.now()},${requestId},FINAL,${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
             fs.appendFileSync(csvFilePath, logEntry);
 
             delete requestSizes[requestId]; 
