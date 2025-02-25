@@ -197,7 +197,6 @@ const fs = require('fs');
 
 
 //////////////////////////////////
-
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 
@@ -210,7 +209,7 @@ const fs = require('fs');
     });
 
     const page = await browser.newPage();
-    const client = await page.target().createCDPSession(); // CDP for deeper network monitoring
+    const client = await page.target().createCDPSession(); // CDP for network monitoring
 
     console.log("Navigating to Twitch...");
     await page.goto('https://www.twitch.tv/sinatraavod', { waitUntil: 'networkidle2' });
@@ -225,14 +224,14 @@ const fs = require('fs');
     await client.send('Network.setCacheDisabled', { cacheDisabled: true }); // Disable browser cache
     await client.send('Network.enable'); // Start network monitoring
 
-    const csvFilePath = "twitch_full_log.csv";
+    const csvFilePath = "twitch_live_log.csv";
     if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Total_Bytes,URL,Type,Method\n");
+        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Total_Bytes,Content_Type,URL\n");
     }
 
     const requestSizes = {}; // Stores total bytes received per request
 
-    // 🔥 LOG EVERY SINGLE REQUEST SENT 🔥
+    // 🔥 LOG EVERY SINGLE REQUEST 🔥
     client.on('Network.requestWillBeSent', (event) => {
         const url = event.request.url;
         const type = event.request.resourceType || "UNKNOWN";
@@ -241,34 +240,41 @@ const fs = require('fs');
         requestSizes[event.requestId] = { bytes: 0, url, type, method };
         console.log(`[REQ] ${type} ${method}: ${url}`);
 
-        const logEntry = `${Date.now()},${event.requestId},0,0,${url},${type},${method}\n`;
-        //fs.appendFileSync(csvFilePath, logEntry);
+        const logEntry = `${Date.now()},${event.requestId},0,0,N/A,${url}\n`;
+        fs.appendFileSync(csvFilePath, logEntry);
     });
 
-    // 🔥 LOG EVERY SINGLE DATA PACKET RECEIVED 🔥
+    // 🔥 LOG LIVE DATA RECEIVED (INCLUDING OCTET-STREAM) 🔥
+    client.on('Network.responseReceived', (event) => {
+        if (event.response.mimeType === "application/octet-stream") {
+            console.log(`[OCTET-STREAM] Detected for Request ID ${event.requestId}: ${event.response.url}`);
+        }
+    });
+
     client.on('Network.dataReceived', (event) => {
         const requestId = event.requestId;
         const bytesReceived = event.dataLength;
         const utcTimestamp = Date.now();
 
-        if (requestSizes[requestId]) {
-            requestSizes[requestId].bytes += bytesReceived;
+        if (!requestSizes[requestId]) {
+            requestSizes[requestId] = { bytes: 0, url: "UNKNOWN", type: "UNKNOWN" };
         }
 
-        console.log(`[DATA] ${requestId} - ${bytesReceived} bytes received`);
+        requestSizes[requestId].bytes += bytesReceived;
+        console.log(`[LIVE] ${requestId} - ${bytesReceived} bytes received (Total: ${requestSizes[requestId].bytes})`);
 
-        const logEntry = `${utcTimestamp},${requestId},${bytesReceived},${requestSizes[requestId]?.bytes || 0},${requestSizes[requestId]?.url || "UNKNOWN"},${requestSizes[requestId]?.type || "UNKNOWN"},\n`;
-        //fs.appendFileSync(csvFilePath, logEntry);
+        const logEntry = `${utcTimestamp},${requestId},${bytesReceived},${requestSizes[requestId].bytes},"${requestSizes[requestId]?.type || "UNKNOWN"}","${requestSizes[requestId]?.url || "UNKNOWN"}"\n`;
+        fs.appendFileSync(csvFilePath, logEntry);
     });
 
-    // 🔥 LOG WHEN REQUEST FINISHES 🔥
+    // 🔥 LOG FINAL TOTAL BYTES RECEIVED 🔥
     client.on('Network.loadingFinished', (event) => {
         const requestId = event.requestId;
 
         if (requestSizes[requestId]) {
             console.log(`[COMPLETE] ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
 
-            const logEntry = `${Date.now()},${requestId},0,${requestSizes[requestId].bytes},${requestSizes[requestId].url},${requestSizes[requestId].type},\n`;
+            const logEntry = `${Date.now()},${requestId},0,${requestSizes[requestId].bytes},${requestSizes[requestId].type},${requestSizes[requestId].url}\n`;
             fs.appendFileSync(csvFilePath, logEntry);
 
             delete requestSizes[requestId]; // Cleanup to prevent memory leaks
