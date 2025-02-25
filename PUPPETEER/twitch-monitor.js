@@ -586,3 +586,33 @@ const puppeteer = require('puppeteer');
 
     console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
 })();
+
+
+//
+(async () => {
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000);
+
+    // Intercept every request and log it
+    page.on('request', (request) => {
+        console.log(`[REQUEST] ${request.url()} (${request.resourceType()})`);
+        request.continue();
+    });
+
+    // Log every response URL
+    page.on('response', (response) => {
+        console.log(`[RESPONSE] ${response.url()} (Status: ${response.status()})`);
+    });
+
+    // Open Twitch stream
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'domcontentloaded' });
+
+    console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
+})();
