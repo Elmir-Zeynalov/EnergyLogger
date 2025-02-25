@@ -616,3 +616,24 @@ const puppeteer = require('puppeteer');
 
     console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
 })();
+
+
+
+//newnew
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({ headless: false });
+    const page = await browser.newPage();
+
+    await page.setRequestInterception(true);
+
+    page.on('request', request => {
+        if (request.url().includes('.ts') || request.url().includes('.m3u8')) {
+            console.log(`[Request] ${request.url()}`);
+        }
+        request.continue();
+    });
+
+    await page.goto('https://www.twitch.tv/YOUR_STREAM_HERE');
+})();
