@@ -191,3 +191,117 @@ const fs = require('fs');
     // Keep browser open for debugging
     // await browser.close();
 })();
+
+
+
+
+
+//////////////////////////////////
+
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+    const client = await page.target().createCDPSession(); // CDP for deeper network monitoring
+
+    console.log("Navigating to Twitch...");
+    await page.goto('https://www.twitch.tv/sinatraavod', { waitUntil: 'networkidle2' });
+
+    console.log("Unregistering service workers & disabling cache...");
+    await page.evaluate(() => {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+            registrations.forEach((reg) => reg.unregister());
+        });
+    });
+
+    await client.send('Network.setCacheDisabled', { cacheDisabled: true }); // Disable browser cache
+    await client.send('Network.enable'); // Start network monitoring
+
+    const csvFilePath = "twitch_full_log.csv";
+    if (!fs.existsSync(csvFilePath)) {
+        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Total_Bytes,URL,Type,Method\n");
+    }
+
+    const requestSizes = {}; // Stores total bytes received per request
+
+    // 🔥 LOG EVERY SINGLE REQUEST SENT 🔥
+    client.on('Network.requestWillBeSent', (event) => {
+        const url = event.request.url;
+        const type = event.request.resourceType || "UNKNOWN";
+        const method = event.request.method;
+
+        requestSizes[event.requestId] = { bytes: 0, url, type, method };
+        console.log(`[REQ] ${type} ${method}: ${url}`);
+
+        const logEntry = `${Date.now()},${event.requestId},0,0,${url},${type},${method}\n`;
+        //fs.appendFileSync(csvFilePath, logEntry);
+    });
+
+    // 🔥 LOG EVERY SINGLE DATA PACKET RECEIVED 🔥
+    client.on('Network.dataReceived', (event) => {
+        const requestId = event.requestId;
+        const bytesReceived = event.dataLength;
+        const utcTimestamp = Date.now();
+
+        if (requestSizes[requestId]) {
+            requestSizes[requestId].bytes += bytesReceived;
+        }
+
+        console.log(`[DATA] ${requestId} - ${bytesReceived} bytes received`);
+
+        const logEntry = `${utcTimestamp},${requestId},${bytesReceived},${requestSizes[requestId]?.bytes || 0},${requestSizes[requestId]?.url || "UNKNOWN"},${requestSizes[requestId]?.type || "UNKNOWN"},\n`;
+        //fs.appendFileSync(csvFilePath, logEntry);
+    });
+
+    // 🔥 LOG WHEN REQUEST FINISHES 🔥
+    client.on('Network.loadingFinished', (event) => {
+        const requestId = event.requestId;
+
+        if (requestSizes[requestId]) {
+            console.log(`[COMPLETE] ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
+
+            const logEntry = `${Date.now()},${requestId},0,${requestSizes[requestId].bytes},${requestSizes[requestId].url},${requestSizes[requestId].type},\n`;
+            fs.appendFileSync(csvFilePath, logEntry);
+
+            delete requestSizes[requestId]; // Cleanup to prevent memory leaks
+        }
+    });
+
+    // 🔥 LOG FETCH() API REQUESTS 🔥
+    await page.evaluate(() => {
+        (function() {
+            const originalFetch = window.fetch;
+            window.fetch = async (...args) => {
+                console.log("[FETCH INTERCEPT]", args[0]);
+                return originalFetch(...args);
+            };
+        })();
+    });
+
+    // 🔥 LOG ALL WebSocket Activity 🔥
+    client.on('Network.webSocketCreated', (event) => {
+        console.log(`[WS] WebSocket Connection Opened: ${event.url}`);
+    });
+
+    client.on('Network.webSocketFrameReceived', (event) => {
+        console.log(`[WS IN] WebSocket Frame Received: ${event.response.payloadData.length} bytes`);
+    });
+
+    client.on('Network.webSocketFrameSent', (event) => {
+        console.log(`[WS OUT] WebSocket Frame Sent: ${event.response.payloadData.length} bytes`);
+    });
+
+    // Periodically print request count
+    setInterval(() => {
+        console.log(`[STATUS] Tracking ${Object.keys(requestSizes).length} active requests`);
+    }, 3000);
+
+})();
