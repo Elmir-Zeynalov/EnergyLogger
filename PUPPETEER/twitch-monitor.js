@@ -507,3 +507,44 @@ const puppeteer = require('puppeteer');
 
     console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
 })();
+
+
+//
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(60000); // Set a higher timeout
+
+    // Enable request interception
+    await page.setRequestInterception(true);
+    page.on('request', (request) => request.continue());
+
+    // Listen for response data
+    page.on('response', async (response) => {
+        const url = response.url();
+
+        // Only capture Twitch video segment requests
+        if ((url.includes('.m4s') || url.includes('.ts')) && response.status() === 200) {
+            try {
+                const buffer = await response.buffer();
+                console.log(`[${new Date().toISOString()}] Downloaded ${buffer.length} bytes from ${url}`);
+            } catch (error) {
+                console.warn(`[WARNING] Failed to get body for ${url}: ${error.message}`);
+            }
+        }
+    });
+
+    // Open the Twitch stream
+    await page.goto('https://www.twitch.tv/YOUR_CHANNEL', { waitUntil: 'domcontentloaded' });
+
+    console.log("Monitoring Twitch stream... Press CTRL+C to stop.");
+})();
+
