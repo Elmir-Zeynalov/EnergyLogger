@@ -11,7 +11,7 @@ const puppeteer = require('puppeteer');
     const page = await browser.newPage();
 
     console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
+    await page.goto('https://www.twitch.tv/silky', { waitUntil: 'networkidle2' });
 
     // Wait for settings button
     console.log("Waiting for settings button...");
@@ -35,34 +35,24 @@ const puppeteer = require('puppeteer');
     //click the settings button and open menu
     //await new Promise(r => setTimeout(r, 1000));
     await settingsButton.click();
-    console.log("Clicked settings button!");
+    console.log("1.Clicked settings button!");
 
 
-    await page.waitForTimeout(500); // Allow some time for animation
+    // Allow some time for animation
+    await new Promise(r => setTimeout(r, 500));
 
     // Step 3: Click the "Advanced" button
     await page.waitForSelector('[data-a-target="player-settings-menu-item-advanced"]', { timeout: 5000 });
     const advancedSettingsButton = await page.$('[data-a-target="player-settings-menu-item-advanced"]');
     await advancedSettingsButton.click();
-    console.log("Clicked advanced settings button!");
+    console.log("2.Clicked advanced settings button!");
 
-
-        // Step 1: Click the Settings button
-
-    // Step 2: Wait for the settings menu to load
-    await page.waitForTimeout(500); // Allow some time for animation
-
-    // Step 3: Click the "Advanced" button
-    await page.waitForSelector('[data-a-target="player-settings-menu-item-advanced"]', { timeout: 5000 });
-    await page.click('[data-a-target="player-settings-menu-item-advanced"]');
-
-    
 
     // Wait for video stats button
     console.log("Waiting for video stats toggle...");
     await page.waitForSelector('[data-a-target="player-settings-submenu-advanced-video-stats"]', { timeout: 30000 });
     await page.click('[data-a-target="player-settings-submenu-advanced-video-stats"]');
-    console.log("✅ Clicked video stats!");
+    console.log("3.Clicked video stats!");
 
     // Wait for stats to load
     await page.waitForSelector('[data-a-target="player-overlay-video-stats-row"]', { timeout: 10000 });
