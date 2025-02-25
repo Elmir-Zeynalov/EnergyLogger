@@ -1,11 +1,17 @@
 const puppeteer = require('puppeteer');
 
 (async () => {
-    const browser = await puppeteer.launch({ headless: false });
+
+    const browser = await puppeteer.launch({
+        userDataDir: "/home/pi/.config/chromium",
+        executablePath: '/usr/bin/chromium-browser',
+        headless: false,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const page = await browser.newPage();
 
     console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/YOUR_CHANNEL_HERE', { waitUntil: 'networkidle2' });
+    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
 
     // Wait for settings button
     console.log("Waiting for settings button...");
@@ -23,15 +29,16 @@ const puppeteer = require('puppeteer');
 
     // Scroll to button and click
     await page.evaluate(() => {
-        document.querySelector('[data-a-target="player-settings-button"]').scrollIntoView();
+        document.querySelector('[data-a-target="player-settings-button"]');
     });
-    await page.waitForTimeout(1000); // Wait for animation
+    //await new Promise(r => setTimeout(r, 1000));
+
     await settingsButton.click();
-    console.log("✅ Clicked settings button!");
+    console.log("Clicked settings button!");
 
     // Wait for video stats button
     console.log("Waiting for video stats toggle...");
-    await page.waitForSelector('[data-a-target="player-settings-submenu-advanced-video-stats"]', { timeout: 10000 });
+    await page.waitForSelector('[data-a-target="player-settings-submenu-advanced-video-stats"]', { timeout: 30000 });
     await page.click('[data-a-target="player-settings-submenu-advanced-video-stats"]');
     console.log("✅ Clicked video stats!");
 
