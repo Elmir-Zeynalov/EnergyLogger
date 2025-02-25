@@ -635,3 +635,29 @@ const puppeteer = require('puppeteer');
 
     await page.goto('https://www.twitch.tv/YOUR_STREAM_HERE');
 })();
+
+
+
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({ headless: false });
+    const page = await browser.newPage();
+
+    // Passive monitoring of network requests
+    page.on('response', async (response) => {
+        try {
+            const url = response.url();
+
+            // Capture response body and determine size
+            const buffer = await response.buffer();
+            const size = buffer.length; // Get the actual byte size
+
+            console.log(`[Response] ${url} - ${size} bytes`);
+        } catch (err) {
+            console.warn(`Error fetching response body: ${err.message}`);
+        }
+    });
+
+    await page.goto('https://www.twitch.tv/YOUR_STREAM_HERE');
+})();
