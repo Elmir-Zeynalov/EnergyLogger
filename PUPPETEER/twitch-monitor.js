@@ -67,14 +67,17 @@ const fs = require('fs');
     console.log("3.Clicked video stats!");
 
 
-    // Capture video segment requests
     client.on('Network.responseReceived', (event) => {
-        if (event.response.url.includes(".ts")) { // Ensure it's a video segment
-            videoRequests.add(event.requestId); 
-            requestSizes[event.requestId] = 0; // Initialize bytes counter
-            console.log(`[TRACK] Video Segment Requested: ${event.response.url}`);
-        }
-    });
+            const url = event.response.url;
+            if (url.includes("video-weaver") || url.includes("video-edge") || url.includes(".ttvnw.net")) {
+                if (url.includes(".ts")) { // Ensure it's a video segment
+                    videoRequests.add(event.requestId);
+                    requestSizes[event.requestId] = { bytes: 0, url };
+                    console.log(`[TRACK] Video Segment Requested: ${url}`);
+                }
+            }
+        });
+
 
         // Track bytes received for video segments
     client.on('Network.dataReceived', async (event) => {
