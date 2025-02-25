@@ -69,12 +69,10 @@ const fs = require('fs');
 
     // Capture video segment requests
     client.on('Network.responseReceived', (event) => {
-        if (event.response.url.includes(".ttvnw.net/") || event.response.url.includes("video-weaver")) {
-            if (event.response.url.includes(".ts")) { // Ensure it's a video segment
-                videoRequests.add(event.requestId); 
-                requestSizes[event.requestId] = 0; // Initialize bytes counter
-                console.log(`[TRACK] Video Segment Requested: ${event.response.url}`);
-            }
+        if (event.response.url.includes(".ts")) { // Ensure it's a video segment
+            videoRequests.add(event.requestId); 
+            requestSizes[event.requestId] = 0; // Initialize bytes counter
+            console.log(`[TRACK] Video Segment Requested: ${event.response.url}`);
         }
     });
 
