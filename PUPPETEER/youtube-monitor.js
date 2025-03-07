@@ -28,55 +28,28 @@ const fs = require('fs');
     }
 
     console.log("Proceeding with video loading...");
-    console.log("Listening to video network traffic...");
-
-    await client.send('Network.enable');
 
     const csvFilePath = "youtube_network_log.csv";
     if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Request_ID,Bytes_Received,Resolution,FPS,Frames_Dropped,Total_Frames,Codecs,Bandwidth_kbps,Network_Activity_KB,Buffer_Health_s,Live_Latency_s,Latency_Mode\n");
+        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Resolution,FPS,Codecs,Bandwidth_kbps,Network_Activity_KB,Buffer_Health_s,Live_Latency_s,Latency_Mode\n");
     }
 
-    const videoRequests = new Set(); // Store only video request IDs
-    const requestSizes = {}; // Store total bytes per request
-    let logBuffer = []; // Store log entries in memory
 
-    // Store request IDs
-    client.on('Network.responseReceived', (event) => {
-        if (event.response.url.includes(".googlevideo.com/") && event.response.url.includes("videoplayback")) {
-            videoRequests.add(event.requestId); // Store request ID
-            requestSizes[event.requestId] = 0; //Ensure request is initialized properly
-        }
-    });
-
-    //Log video data in real-time (Only for video request IDs)
-    client.on('Network.dataReceived', async (event) => {
-        const requestId = event.requestId;
+    async function logNerdStats(){
         const utcTimestamp = Date.now();
-        const bytesReceived = event.dataLength; // Amount of data received
-
-        // Ensure request ID is initialized, even if `responseReceived` hasn't fired yet!
-        if (!requestSizes.hasOwnProperty(requestId)) {
-            requestSizes[requestId] = 0; // Initialize it if missing
-        }
-        //const utcTimestamp = new Date().toISOString();
         
-        requestSizes[requestId] += bytesReceived; // Add to total count
-
         const videoStats = await page.evaluate(() => {
             const video = document.querySelector('video');
             const player = document.getElementById('movie_player');
-
-            if (!video) return null;
-            if (!player) return null;
+            
+            if(!video || !player) return null;
 
             const nerdStats = player.getStatsForNerds();
+            if(!nerdStats) return null;
 
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
                 fps: `${nerdStats.resolution.split("@")[1].split(" ")[0]}`,
-                framesDropped: `${video.getVideoPlaybackQuality().droppedVideoFrames}`,
-                framesTotal : `${video.getVideoPlaybackQuality().totalVideoFrames}`,
                 codecs: `${nerdStats.codecs}`,
                 bandwidth_kbps: nerdStats.bandwidth_kbps.replace(/\D/g, ''),
                 networkActivity: nerdStats.network_activity_bytes.replace(/\D/g, ''),
@@ -86,24 +59,18 @@ const fs = require('fs');
                 liveLatency: nerdStats.live_latency_secs?.replace(/[^\d.]/g, '') ?? null,
                 liveMode: nerdStats.live_mode ?? null,
             };
+
         });
 
-        console.log(`[LIVE][${utcTimestamp}][id: ${requestId}][BytesReceived: ${bytesReceived}][Resolution: ${videoStats.resolution}][FPS: ${videoStats.fps}][FramesDropped: ${videoStats.framesDropped}][FramesTotal: ${videoStats.framesTotal}][Codec: ${videoStats.codecs}][Bandwidth: ${videoStats.bandwidth_kbps}][NetworkActivity: ${videoStats.networkActivity}][BufferHealth: ${videoStats.bufferHealth}] [Live Latency: ${videoStats.liveLatency}] [Latency Mode: ${videoStats.liveMode}]`);
-
-        const csvEntry = `${utcTimestamp},${requestId},${bytesReceived},${videoStats.resolution},${videoStats.fps},${videoStats.framesDropped},${videoStats.framesTotal},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth},${videoStats.liveLatency},${videoStats.liveMode}\n`;
-        fs.appendFileSync(csvFilePath, csvEntry);
-    });
-
-    //Log final total bytes when request finishes
-    client.on('Network.loadingFinished', (event) => {
-        const requestId = event.requestId;
-
-        if (videoRequests.has(requestId)) {
-            console.log(`[FINAL] Request ${requestId} completed. Total Bytes: ${requestSizes[requestId]}`);
-
-            // Cleanup
-            videoRequests.delete(requestId);
-            delete requestSizes[requestId];
+        if (videoStats) {
+            console.log(`[${utcTimestamp}] Resolution: ${videoStats.resolution}, FPS: ${videoStats.fps}, Codec: ${videoStats.codecs}, Bandwidth: ${videoStats.bandwidth_kbps} kbps, Network Activity: ${videoStats.networkActivity} KB, Buffer Health: ${videoStats.bufferHealth} s, Live Latency: ${videoStats.liveLatency} s, Latency Mode: ${videoStats.liveMode}`);
+            
+            const csvEntry = `${utcTimestamp},${videoStats.resolution},${videoStats.fps},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth},${videoStats.liveLatency},${videoStats.liveMode}\n`;
+            fs.appendFileSync(csvFilePath, csvEntry);
+        } else {
+            console.log("Failed to retrieve nerd stats.");
         }
-    });
+    }
+    setInterval(logNerdStats, 1000);
+    
 })();
