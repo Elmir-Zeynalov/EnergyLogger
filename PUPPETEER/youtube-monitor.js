@@ -13,7 +13,8 @@ const fs = require('fs');
     const client = await page.target().createCDPSession(); // Chrome DevTools Protocol
 
     console.log("Loading YouTube...");
-    await page.goto('https://www.youtube.com/watch?v=8QcQ_128OIw&start=0&vq=small', { waitUntil: 'load' });
+    //await page.goto('https://www.youtube.com/watch?v=8QcQ_128OIw&start=0&vq=small', { waitUntil: 'load' });
+    await page.goto('https://www.youtube.com/watch?v=-qjE8JkIVoQ', { waitUntil: 'load' });
 
     try {
         console.log("Checking for cookie consent banner...");
