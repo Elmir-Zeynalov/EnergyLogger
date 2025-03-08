@@ -56,179 +56,61 @@ const fs = require('fs');
     // Wait for stats to load
     await page.waitForSelector('[data-a-target="player-overlay-video-stats-row"]', { timeout: 10000 });
 
-    // Extract stats
-    const stats = await page.evaluate(() => {
-        let statsData = {};
-        document.querySelectorAll('[data-a-target="player-overlay-video-stats-row"]').forEach(row => {
-            let name = row.querySelector('td:first-child p').innerText;
-            let value = row.querySelector('td:last-child p').innerText;
-            statsData[name] = value;
-        });
-        return statsData;
-    });
+    const csvFilePath = "twitch_video_stats.csv";
+     if (!fs.existsSync(csvFilePath)) {
+        fs.writeFileSync(csvFilePath, "UTC_Timestamp,Download_Resolution,Download_Bitrate,Bandwidth_Estimate,FPS,Skipped_Frames,Buffer_Size,Latency_To_Broadcaster,Codecs,Protocol,Latency_Mode\n");
+    }
 
-    console.log("🎥 Extracted Video Stats:", stats);
+
+
+    async function logTwitchStats(){
+        try{
+            const utcTimestamp = Date.now();
+            const stats = await page.evaluate(() => {
+                let statData = {};
+                document.querySelectorAll('[data-a-target="player-overlay-video-stats-row"]').forEach(row => {
+                    let name = row.querySelector('td:first-child p')?.innerText;
+                    let value = row.querySelector('td:last-child p')?.innerText;
+                    if (name && value) {
+                        statData[name] = value;
+                    }
+                });
+                return statData;
+            });
+            if (!stats) {
+                console.log("Failed to retrieve Twitch video stats.");
+                return;
+            }
+            
+            // Extract specific stats
+            const downloadResolution = stats["Download Resolution"] || "N/A";
+            const renderResolution = stats["Render Resolution"] || "N/A";
+            const viewportResolution = stats["Viewport Resolution"] || "N/A";
+            const fps = stats["FPS"]?.replace(/\D/g, '') || "N/A"; // Extracts only numbers
+            const downloadBitrate = stats["Download Bitrate"]?.replace(/\D/g, '') || "N/A"; // Removes "Kbps"
+            const bandwidthEstimate = stats["Bandwidth Estimate"]?.replace(/\D/g, '') || "N/A"; // Removes "Mbps"
+            const bufferSize = stats["Buffer Size"]?.replace(/[^\d.]/g, '') || "N/A"; // Removes "sec."
+            const latencyToBroadcaster = stats["Latency To Broadcaster"]?.replace(/[^\d.]/g, '') || "N/A"; // Removes "sec."
+            const codec = stats["Codecs"] || "N/A";
+            const latencyMode = stats["Latency Mode"] || "N/A";
+
+            console.log(`[${utcTimestamp}] Download Res: ${downloadResolution}, Render Res: ${renderResolution}, Viewport Res: ${viewportResolution}, FPS: ${fps}, Bitrate: ${downloadBitrate} Kbps, Bandwidth: ${bandwidthEstimate} Mbps, Buffer: ${bufferSize} s, Latency: ${latencyToBroadcaster} s, Codec: ${codec}, Latency Mode: ${latencyMode}`);
+
+            // Append to CSV
+            const csvEntry = `${utcTimestamp},${downloadResolution},${renderResolution},${viewportResolution},${fps},${downloadBitrate},${bandwidthEstimate},${bufferSize},${latencyToBroadcaster},${codec},${latencyMode}\n`;
+            fs.appendFile(csvFilePath, csvEntry, (err) => {
+                if (err) console.error("Error writing to CSV:", err);
+            });
+
+        } catch (error) {
+            console.error("Error collecting stats:", error);
+        }
+    }
+
+    // Log stats every 400 milliseconds
+    setInterval(logTwitchStats, 400);
 
     // await browser.close();
 })();
 
 
-
-
-
-//////////////////////////////////
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-(async () => {
-    const browser = await puppeteer.launch({
-        userDataDir: "/home/pi/.config/chromium",
-        executablePath: '/usr/bin/chromium-browser',
-        headless: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-    const client = await page.target().createCDPSession();
-
-    console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/kaicenat', { waitUntil: 'networkidle2' });
-
-    console.log("Disabling cache...");
-    await client.send('Network.setCacheDisabled', { cacheDisabled: true }); 
-    await client.send('Network.enable');
-
-    const csvFilePath = "twitch_segment_data.csv";
-    if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "Timestamp,Request_ID,Bytes_Received,Total_Bytes,URL\n");
-    }
-
-    const requestSizes = {}; 
-
-    // 🔥 LOG WHEN A VIDEO SEGMENT REQUEST STARTS
-    client.on('Network.requestWillBeSent', (event) => {
-        const url = event.request.url;
-        
-        if (url.includes(".ttvnw.net") && url.includes(".ts")) {  // Only log Twitch video segment requests
-            requestSizes[event.requestId] = { url, bytes: 0 };
-            console.log(`[START] Request ID: ${event.requestId} - ${url}`);
-        }
-    });
-
-    // 🔥 LOG CHUNKED DATA AS IT ARRIVES
-    client.on('Network.dataReceived', (event) => {
-        const requestId = event.requestId;
-        const bytesReceived = event.dataLength;
-
-        if (requestSizes[requestId]) {
-            requestSizes[requestId].bytes += bytesReceived;
-            console.log(`[DATA] ${requestId} - +${bytesReceived} bytes (Total: ${requestSizes[requestId].bytes})`);
-            
-            // Append each data chunk to CSV
-            const logEntry = `${Date.now()},${requestId},${bytesReceived},${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-        }
-    });
-
-    // 🔥 LOG FINAL TOTAL BYTES WHEN REQUEST FINISHES
-    client.on('Network.loadingFinished', (event) => {
-        const requestId = event.requestId;
-
-        if (requestSizes[requestId]) {
-            console.log(`[COMPLETE] Request ID: ${requestId} - Total Bytes: ${requestSizes[requestId].bytes} - ${requestSizes[requestId].url}`);
-
-            // Append final total to CSV
-            const logEntry = `${Date.now()},${requestId},FINAL,${requestSizes[requestId].bytes},${requestSizes[requestId].url}\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-
-            delete requestSizes[requestId]; 
-        }
-    });
-
-})();
-
-
-
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-(async () => {
-    const browser = await puppeteer.launch({
-        userDataDir: "/home/pi/.config/chromium",
-        executablePath: '/usr/bin/chromium-browser',
-        headless: false,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-    const client = await page.target().createCDPSession();
-
-    console.log("Navigating to Twitch...");
-    await page.goto('https://www.twitch.tv/silky', { waitUntil: 'networkidle2' });
-
-    console.log("Disabling cache & bypassing service workers...");
-    await client.send('Network.setCacheDisabled', { cacheDisabled: true });
-    await page.evaluate(() => {
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-            registrations.forEach((reg) => reg.unregister());
-        });
-    });
-
-    console.log("Enabling Fetch API tracking...");
-    await client.send('Fetch.enable', {}); // Enables deeper Fetch API tracking
-
-    console.log("Starting network monitoring...");
-    await client.send('Network.enable');
-
-    const csvFilePath = "twitch_fetch_debug.csv";
-    if (!fs.existsSync(csvFilePath)) {
-        fs.writeFileSync(csvFilePath, "Timestamp,Request_ID,Event_Type,URL,Status,Content_Type,Other_Info\n");
-    }
-
-    const requestData = {}; 
-
-    // 🔥 LOG WHEN A VIDEO SEGMENT REQUEST STARTS
-    client.on('Network.requestWillBeSent', (event) => {
-        const url = event.request.url;
-        if (url.includes(".ttvnw.net") && url.includes(".ts")) {
-            requestData[event.requestId] = { url };
-            console.log(`[START] Request ID: ${event.requestId} - ${url}`);
-
-            const logEntry = `${Date.now()},${event.requestId},REQUEST_SENT,${url},N/A,N/A,N/A\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-        }
-    });
-
-    client.on('Fetch.requestPaused', async (event) => {
-        if (event.request.url.includes(".ttvnw.net") && event.request.url.includes(".ts")) {
-            console.log(`[FETCH API] Caught request: ${event.request.url}`);
-
-            const logEntry = `${Date.now()},${event.requestId},FETCH_REQUEST,${event.request.url},N/A,N/A,N/A\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-        }
-        await client.send('Fetch.continueRequest', { requestId: event.requestId }); // Let the request continue
-    });
-
-    client.on('Network.responseReceived', (event) => {
-        const requestId = event.requestId;
-        if (requestData[requestId]) {
-            const contentType = event.response.mimeType || "UNKNOWN";
-            console.log(`[RESPONSE] ${requestId} - Content-Type: ${contentType}`);
-
-            const logEntry = `${Date.now()},${requestId},RESPONSE_RECEIVED,${requestData[requestId].url},${event.response.status},${contentType},N/A\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-        }
-    });
-
-    client.on('Network.loadingFinished', (event) => {
-        const requestId = event.requestId;
-        if (requestData[requestId]) {
-            console.log(`[COMPLETE] Request ID: ${requestId} - ${requestData[requestId].url}`);
-
-            const logEntry = `${Date.now()},${requestId},REQUEST_COMPLETED,${requestData[requestId].url},N/A,N/A,N/A\n`;
-            fs.appendFileSync(csvFilePath, logEntry);
-
-            delete requestData[requestId];
-        }
-    });
-})();
