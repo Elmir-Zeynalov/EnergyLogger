@@ -50,7 +50,7 @@ const fs = require('fs');
 
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
-                fps: `${nerdStats.resolution?.split("@")[1].split(" ")[0]}` ?? null,
+                fps: `${nerdStats.resolution?.split("@")[1]?.split(" ")[0]}` ?? null,
                 codecs: `${nerdStats.codecs}`,
                 bandwidth_kbps: nerdStats.bandwidth_kbps.replace(/\D/g, ''),
                 networkActivity: nerdStats.network_activity_bytes.replace(/\D/g, ''),
@@ -67,11 +67,14 @@ const fs = require('fs');
             console.log(`[${utcTimestamp}] Resolution: ${videoStats.resolution}, FPS: ${videoStats.fps}, Codec: ${videoStats.codecs}, Bandwidth: ${videoStats.bandwidth_kbps} kbps, Network Activity: ${videoStats.networkActivity} KB, Buffer Health: ${videoStats.bufferHealth} s, Live Latency: ${videoStats.liveLatency} s, Latency Mode: ${videoStats.liveMode}`);
             
             const csvEntry = `${utcTimestamp},${videoStats.resolution},${videoStats.fps},${videoStats.codecs},${videoStats.bandwidth_kbps},${videoStats.networkActivity},${videoStats.bufferHealth},${videoStats.liveLatency},${videoStats.liveMode}\n`;
-            fs.appendFileSync(csvFilePath, csvEntry);
+            fs.appendFile(csvFilePath, csvEntry, (err) => {
+                if (err) console.error("Error writing to CSV:", err);
+            });
+
         } else {
             console.log("Failed to retrieve nerd stats.");
         }
     }
-    setInterval(logNerdStats, 200);
+    setInterval(logNerdStats, 400);
     
 })();
