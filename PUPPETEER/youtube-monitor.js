@@ -50,7 +50,7 @@ const fs = require('fs');
 
             return {
                 resolution: `${video.videoWidth}x${video.videoHeight}`,
-                fps: `${nerdStats.resolution.split("@")[1].split(" ")[0]}`,
+                fps: `${nerdStats.resolution?.split("@")[1].split(" ")[0]}` ?? null,
                 codecs: `${nerdStats.codecs}`,
                 bandwidth_kbps: nerdStats.bandwidth_kbps.replace(/\D/g, ''),
                 networkActivity: nerdStats.network_activity_bytes.replace(/\D/g, ''),
@@ -72,6 +72,6 @@ const fs = require('fs');
             console.log("Failed to retrieve nerd stats.");
         }
     }
-    setInterval(logNerdStats, 1000);
+    setInterval(logNerdStats, 200);
     
 })();
